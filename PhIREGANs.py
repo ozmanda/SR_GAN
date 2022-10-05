@@ -33,12 +33,12 @@ class PhIREGANs:
         self.LR_data_shape = None
 
         # Set various paths for where to save data
-        self.run_id = '-'.join([self.data_type, strftime('%Y%m%d-%H%M%S')])
         self.run_id = f'{self.data_type}-{strftime("%Y%m%d-%H%M%S")}'
-        self.model_name = '/'.join(['models', self.run_id])
-        self.model_name = f'models/{self.run_id}'
-        self.data_out_path = '/'.join(['data_out', self.run_id])
+        self.model_name = f'{self.run_id}'
         self.data_out_path = f'data_out/{self.run_id}'
+        # self.run_id = '-'.join([self.data_type, strftime('%Y%m%d-%H%M%S')])
+        # self.model_name = '/'.join(['models', self.run_id])
+        # self.data_out_path = '/'.join(['data_out', self.run_id])
 
     def setSave_every(self, in_save_every):
         self.save_every = in_save_every
@@ -66,7 +66,7 @@ class PhIREGANs:
         self.model_name = '/'.join(['models', self.run_id])
         self.data_out_path = '/'.join(['data_out', self.run_id])
 
-    def pretrain(self, r, data_path, model_path=None, batch_size=100):
+    def pretrain(self, r, data_path, model_path, pretrainedmodel_path=None, batch_size=100):
         """
             This method trains the generator without using a discriminator/adversarial training.
             This method should be called to sufficiently train the generator to produce decent images before
@@ -115,13 +115,13 @@ class PhIREGANs:
         print('Done.')
 
         with tf.Session() as sess:
-            print('Training network ...')
+            print('Pretraining network ...')
 
             sess.run(init)
 
-            if model_path is not None:
+            if pretrainedmodel_path is not None:
                 print('Loading previously trained network...', end=' ')
-                g_saver.restore(sess, model_path)
+                g_saver.restore(sess, pretrainedmodel_path)
                 print('Done.')
 
             # Start training
@@ -155,7 +155,7 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
-                    model_dir = '/'.join([self.model_name, 'cnn{0:05d}'.format(epoch)])
+                    model_dir = os.path.join(model_path, '/'.join([self.model_name, '{0:05d}'.format(epoch)]))
                     if not os.path.exists(model_dir):
                         os.makedirs(model_dir)
                     saved_model = '/'.join([model_dir, 'cnn'])
