@@ -5,6 +5,7 @@ from netCDF4 import Dataset
 from utils import downscale_image, generate_TFRecords
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+import time
 
 
 def create_tempmaps(datapath, filename, scalingfactor):
@@ -103,7 +104,7 @@ def create_arrays(imgdir, datapath, scalingfactor):
     return imgarray_HR, imgarray_LR
 
 
-def dataprep(datapath, scalingfactor):
+def dataprep(datapath, tfrecordpath, scalingfactor, mode, return_array=False):
     # Check datapath and break if not valid
     if not datapath:
         warn('No relative path to the .nc training file was given.', Warning)
@@ -134,9 +135,38 @@ def dataprep(datapath, scalingfactor):
         imgarray_HR, imgarray_LR = create_images(imgdir, datapath, tempmaps, scalingfactor)
 
     # generate TFRecords from imgarrays
-    print(f'\nGenerating .tfrecord from {filename}.nc\n')
-    generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_train.tfrecord'), data_HR=imgarray_HR,
-                       data_LR=imgarray_LR, mode='train')
-    generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=imgarray_LR, mode='test')
+    if mode=='train':
+        print(f'\nGenerating .tfrecord from {filename}.nc\n')
+        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_train.tfrecord'), data_HR=imgarray_HR,
+                           data_LR=imgarray_LR, mode='train')
+        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=imgarray_LR, mode='test')
 
-    return imgarray_HR
+    elif mode=='pretrain':
+        generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
+
+    elif mode == 'inference':
+
+
+    if return_array:
+        return imgarray_HR
+
+
+def train_test_split(imgarrays, test_size=0.2):
+    i = int((1 - test_size) * imgarrays.shape[0])
+    o = np.random.permutation(imgarrays.shape[0])
+
+    imgarrays_train, imgarrays_test = np.split(np.take(imgarrays, o, axis=0), [i])
+
+    return imgarrays_train, imgarrays_test
+
+
+def start_timer():
+    global _start_time
+    _start_time = time.time()
+
+
+def end_timer():
+    t_sec = round(time.time() - _start_time)
+    (t_min, t_sec) = divmod(t_sec, 60)
+    (t_hour, t_min) = divmod(t_min, 60)
+    return f'{t_hour}:{t_min}:{t_sec}'
