@@ -84,10 +84,8 @@ if __name__ == '__main__':
 
         # pretrain model using provided dataset, without using another pretrained model (model_path==None)
         start_timer()
-        model_dir = phiregans.pretrain(r=[args.scalingfactor],
-                                       data_path=tfrecord_pretrain,
-                                       model_path=args.pretrainedmodelspath,
-                                       batch_size=args.batchsize)
+        model_dir = phiregans.pretrain(r=[args.scalingfactor], model_path=args.pretrainedmodelspath,
+                                       data_path=tfrecord_pretrain, batch_size=args.batchsize)
         times['pretraintime'] = end_timer()
 
 
