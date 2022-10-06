@@ -36,7 +36,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretraindata', type=str, help='relative path to the pretraining dataset', default=None)
     parser.add_argument('--traindata', type=str, help='relative path to the netCDF training file without .nc extension',
                         default=None)
-    parser.add_argument('--testdata', type=str, help='relative path to the netCDF test file without .nc extension',
+    parser.add_argument('--inferencedata', type=str, help='relative path to the netCDF test file without .nc extension',
                         default=None)
 
     # Model paths
@@ -44,8 +44,8 @@ if __name__ == '__main__':
                         help='the relative path to the folder containing trained models')
     parser.add_argument('--trainedmodelspath', type=str, default='models/trained/',
                         help='the relative path to the folder containing trained models')
-    parser.add_argument('--pretrainedmodelname', type=str, default=None, help='name of the model to use for training')
-    parser.add_argument('--trainedmodelname', type=str, default=None, help='name of the model to use for inference')
+    parser.add_argument('--pretrainedmodel', type=str, default=None, help='path to the model to use for training')
+    parser.add_argument('--trainedmodel', type=str, default=None, help='path to the model to use for inference')
 
     # Parameters
     parser.add_argument('--scalingfactor', type=str, help='the superresolution factor, default is 5', default=5)
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     # ensure that at least one valid mode has been entered, and make sure inference is not run on a pretrained model
     assert args.mode, 'At least one mode must be given.'
-    if not 'pretrain' in args.mode or 'train' in args.mode or 'inference' in args.mode:
+    if not 'pretrain' in args.mode and not 'train' in args.mode and not 'inference' in args.mode:
         print('Must provide one of the following modes: pretrain, train, inference')
         raise ValueError
     elif 'inference' in args.mode and 'pretrain' in args.mode and 'train' not in args.mode:
@@ -85,25 +85,24 @@ if __name__ == '__main__':
         start_timer()
         model_dir = phiregans.pretrain(r=[args.scalingfactor], model_path=args.pretrainedmodelspath,
                                        data_path=tfrecord_pretrain, batch_size=args.batchsize,
-                                       pretrainedmodel_path=os.path.join(args.pretrainedmodelspath, args.pretrainedmodelname)
-                                       if args.pretrainedmodelname else None)
+                                       pretrainedmodel_path=args.pretrainedmodel)
         times['pretraintime'] = end_timer()
 
     # TRAINING
     if 'train' in args.mode:
         # determine if model must be pretrained
         if not model_dir:
-            assert args.pretrainedmodelname, 'You must either pretrain a model before training or provide a pretrained model'
-            model_dir = os.path.join(args.pretrainedmodelspath, args.pretrainedmodelname)
+            assert args.pretrainedmodel, 'You must either pretrain a model before training or provide a pretrained model'
+            model_dir = args.pretrainedmodel
 
         # assert data is provided and load or generate if necessary
         assert args.traindata, 'Training data must be provided'
         tfrecord_train = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_train.tfrecord')
         tfrecord_test = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_test.tfrecrord')
         if not os.path.isfile(tfrecord_train) or not os.path.isfile(tfrecord_test):
-            imgarray_HR = dataprep(args.datapath, [tfrecord_train, tfrecord_test], args.scaling_factor, 'train')
+            imgarray_HR = dataprep(args.traindata, [tfrecord_train, tfrecord_test], args.scalingfactor, 'train')
         else:
-            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_test_HR.npy'))
+            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_test_HR.npy'))
 
         # initialise empty PhIRE-GAN and begin training
         phiregans = PhIREGANs(data_type='temperature', N_epochs_train=args.epochstrain)
@@ -111,8 +110,8 @@ if __name__ == '__main__':
         start_timer()
         model_dir = phiregans.train(r=[args.scalingfactor],
                                     data_path=tfrecord_train,
-                                    model_path=args.trainedmodelpath,
-                                    pretrainedmodelpath=model_dir,
+                                    model_path=args.trainedmodel,
+                                    trainedmodelpath=model_dir,
                                     batch_size=args.batchsize)
         times['traintime'] = end_timer()
 
@@ -126,10 +125,10 @@ if __name__ == '__main__':
         mse = (1/len(imgarray_HR)) * np.sum((imgarray_HR-data_out)**2)
         print(f'\n\nThe mean squared error of the model is {np.round(mse, 2)}\n\n')
 
-        infofile = open(os.path.join(data_out_path, f'model_information.txt'), 'w')
+        infofile = open(os.path.join(os.path.dirname(model_dir), f'model_information.txt'), 'w')
         infofile.writelines([f'{phiregans.model_name} MODEL INFORMATION\n',
-                             f'Training data: {args.datapath}\n',
-                             f'Scaling factor: {args.scaling_factor}\n',
+                             f'Training data: {args.traindata}\n',
+                             f'Scaling factor: {args.scalingfactor}\n',
                              f'Batch size: {args.batchsize}\n',
                              f'Epochs:{args.epochs_pretrain} pretraining, {args.epochs_train} training',
                              f'Times: {times[0]} pretraining, {times[1]} training, {times[2]} testing'])
@@ -138,17 +137,17 @@ if __name__ == '__main__':
     # INFERENCE
     if 'inference' in args.mode:
         # assert data is provided and load or generate if necessary
-        tfrecord_inference = os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_test.tfrecord')
+        tfrecord_inference = os.path.join(os.getcwd(), f'Data/{args.inferencedata.split("/")[-1]}_test.tfrecord')
         if not os.path.isfile(tfrecord_inference):
-            imgarray_HR = dataprep(args.datapath, tfrecord_inference, args.scaling_factor, 'inference')
+            imgarray_HR = dataprep(args.inferencedata, tfrecord_inference, args.scalingfactor, 'inference')
         else:
-            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_imgs_HR.npy'))
+            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.inferencedata.split("/")[-1]}_imgs_HR.npy'))
 
         if not args.modelpath:
             warn('No model path was given for mode test - no model could be loaded.', Warning)
             raise ValueError
         else:
-            model_path = os.path.join(os.getcwd(), args.modelpath)
+            model_path = args.trainedmodel
 
         # calculate mean and sd of dataset and save as .pickle file
         mu_sig = calculate_mu_sig(imgarray_HR)
@@ -156,7 +155,7 @@ if __name__ == '__main__':
         phiregans = PhIREGANs(data_type=args.datatype, mu_sig=mu_sig)
 
         start_timer()
-        data_out, data_out_path = phiregans.test(r=[args.scaling_factor],
+        data_out, data_out_path = phiregans.test(r=[args.scalingfactor],
                                                  data_path=tfrecord_inference,
                                                  model_path=model_path,
                                                  batch_size=args.batchsize)
@@ -164,8 +163,8 @@ if __name__ == '__main__':
 
         infofile = open(os.path.join(data_out_path, f'model_information.txt'), 'w')
         infofile.writelines([f'{phiregans.model_name} MODEL INFORMATION\n',
-                             f'Datapath: {args.datapath}\n',
-                             f'Scaling factor: {args.scaling_factor}\n',
+                             f'Datapath: {args.inferencedata}\n',
+                             f'Scaling factor: {args.scalingfactor}\n',
                              f'Batch size: {args.batchsize}\n',
                              f'Inference Time: {time}'])
         infofile.close()
