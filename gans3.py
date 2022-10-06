@@ -88,7 +88,6 @@ if __name__ == '__main__':
                                        data_path=tfrecord_pretrain, batch_size=args.batchsize)
         times['pretraintime'] = end_timer()
 
-
     # TRAINING
     if 'train' in args.mode:
         # determine if model must be pretrained
@@ -99,10 +98,14 @@ if __name__ == '__main__':
         # assert data is provided and load or generate if necessary
         assert args.traindata, 'Training data must be provided'
         tfrecord_train = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_train.tfrecord')
-        if not os.path.isfile(tfrecord_train):
-            imgarray_HR = dataprep(args.datapath, args.scaling_factor)
+        tfrecord_test = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_test.tfrecrord')
+        if not os.path.isfile(tfrecord_train) or not os.path.isfile(tfrecord_test):
+            imgarray_HR = dataprep(args.datapath, [tfrecord_train, tfrecord_test], args.scaling_factor, 'train')
         else:
-            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_imgs_HR.npy'))
+            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_test_HR.npy'))
+
+        # initialise empty PhIRE-GAN and begin training
+        phiregans = PhIREGANs(data_type='temperature', N_epochs_train=args.epochstrain)
 
         start_timer()
         model_dir = phiregans.train(r=[args.scalingfactor],
@@ -111,10 +114,12 @@ if __name__ == '__main__':
                                     batch_size=args.batchsize)
         times['traintime'] = end_timer()
 
+        start_timer()
         data_out, data_out_path = phiregans.test(r=[args.scalingfactor],
-                                                 data_path=tfrecord_train,
+                                                 data_path=tfrecord_test,
                                                  model_path=model_dir,
                                                  batch_size=args.batchsize)
+        times['testtime'] = end_timer()
 
         mse = (1/len(imgarray_HR)) * np.sum((imgarray_HR-data_out)**2)
         print(f'\n\nThe mean squared error of the model is {np.round(mse, 2)}\n\n')
@@ -128,16 +133,12 @@ if __name__ == '__main__':
                              f'Times: {times[0]} pretraining, {times[1]} training, {times[2]} testing'])
         infofile.close()
 
-
-
-
-    # INFERENCCE
+    # INFERENCE
     if 'inference' in args.mode:
         # assert data is provided and load or generate if necessary
         tfrecord_inference = os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_test.tfrecord')
         if not os.path.isfile(tfrecord_inference):
-            imgarray_HR = dataprep(args.datapath, tfrecord_inference, args.scaling_factor,
-                                   'inference', return_array=True)
+            imgarray_HR = dataprep(args.datapath, tfrecord_inference, args.scaling_factor, 'inference')
         else:
             imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.datapath.split("/")[-1]}_imgs_HR.npy'))
 
