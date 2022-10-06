@@ -163,7 +163,6 @@ def dataprep(datapath, tfrecordpath, scalingfactor, mode):
         return imgarray_HR
 
 
-
 def train_test_split(imgarrayLR, imgarrayHR, test_size=0.2):
     i = int((1 - test_size) * imgarrayLR.shape[0])
     o = np.random.permutation(imgarrayLR.shape[0])
