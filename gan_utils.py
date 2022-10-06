@@ -143,6 +143,7 @@ def dataprep(datapath, tfrecordpath, scalingfactor, mode):
 
     # PRETRAINING
     if mode == 'pretrain':
+        assert tfrecordpath, 'For pretraining, a tfrecordpath must be given'
         print(f'\nGenerating Pretraining dataset from {filename}.nc\n')
         generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
 
@@ -150,15 +151,15 @@ def dataprep(datapath, tfrecordpath, scalingfactor, mode):
     elif mode == 'train':
         LR_train, LR_test, HR_train, HR_test = train_test_split(imgarray_LR, imgarray_HR)
         print(f'\nGenerating Training dataset from {filename}.nc\n')
-        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_train.tfrecord'), data_HR=HR_train,
-                           data_LR=LR_train, mode='train')
-        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=LR_test, mode='test')
+        generate_TFRecords(tfrecordpath[0], data_HR=HR_train, data_LR=LR_train, mode='train')
+        generate_TFRecords(tfrecordpath[1], data_LR=LR_test, mode='test')
+        np.save(os.path.join(os.getcwd(), f'Data/{datapath.split("/")[-1]}_test_HR.npy'), HR_test)
         return HR_test
 
     # INFERENCE
     elif mode == 'inference':
         print(f'\nGenerating Inference dataset from {filename}.nc\n')
-        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=imgarray_LR, mode='test')
+        generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
         return imgarray_HR
 
 
