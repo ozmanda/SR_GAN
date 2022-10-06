@@ -155,6 +155,7 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
+                    model_dir = os.path.join(model_path, f'{self.model_name}/{"{0:05d}".format(epoch)}')
                     model_dir = os.path.join(model_path, '/'.join([self.model_name, '{0:05d}'.format(epoch)]))
                     if not os.path.exists(model_dir):
                         os.makedirs(model_dir)
@@ -166,10 +167,10 @@ class PhIREGANs:
                 print('Epoch generator training loss=%.5f' % (epoch_loss))
                 print('Epoch took %.2f seconds\n' % (time() - start_time), flush=True)
 
-            model_dir = '/'.join([self.model_name, 'cnn'])
-            if not os.path.exists(self.model_name):
-                os.makedirs(self.model_name)
-            saved_model = '/'.join([model_dir, 'cnn'])
+            model_dir = os.path.join(model_path, f'{self.model_name}/cnn')
+            if not os.path.exists(model_dir):
+                os.makedirs(model_dir)
+            saved_model = os.path.join(model_dir, 'cnn')
             g_saver.save(sess, saved_model)
 
         print('Done.')
