@@ -75,7 +75,7 @@ class PhIREGANs:
             inputs:
                 r          - (int array) should be array of prime factorization of amount of super-resolution to perform
                 data_path  - (string) path of training data file to load in
-                model_path - (string) path of previously trained model to load in if continuing training
+                pretrainedmodel_path - (string) path of previously trained model to load in if continuing training
                 batch_size - (int) number of images to grab per batch. decrease if running out of memory
 
             output:
@@ -176,7 +176,7 @@ class PhIREGANs:
 
         return saved_model
 
-    def train(self, r, data_path, pretrainedmodelpath, model_path, batch_size=100, alpha_advers=0.001):
+    def train(self, r, data_path, trainedmodelpath, model_path, batch_size=100, alpha_advers=0.001):
         '''
             This method trains the generator using a disctiminator/adversarial training. 
             This method should be called after a sufficiently pretrained generator has been saved.
@@ -184,7 +184,7 @@ class PhIREGANs:
             inputs:
                 r            - (int array) should be array of prime factorization of amount of super-resolution to perform
                 data_path    - (string) path of training data file to load in
-                model_path   - (string) path of previously pretrained or trained model to load
+                trainedmodelpath   - (string) path of previously pretrained or trained model to load
                 batch_size   - (int) number of images to grab per batch. decrease if running out of memory
                 alpha_advers - (float) scaling value for the effect of the discriminator
 
@@ -194,7 +194,7 @@ class PhIREGANs:
 
         tf.reset_default_graph()
 
-        assert model_path is not None, 'Must provide path for pretrained model'
+        assert trainedmodelpath is not None, 'Must provide path for pretrained model'
 
         if self.mu_sig is None:
             self.set_mu_sig(data_path, batch_size)
@@ -234,12 +234,12 @@ class PhIREGANs:
             sess.run(init)
 
             print('Loading previously trained network...', end=' ')
-            if 'gan-all' in model_path:
+            if 'gd' in trainedmodelpath:
                 # Load both pretrained generator and discriminator networks
-                gd_saver.restore(sess, model_path)
+                gd_saver.restore(sess, trainedmodelpath)
             else:
                 # Load only pretrained generator network, start discriminator training from scratch
-                g_saver.restore(sess, model_path)
+                g_saver.restore(sess, trainedmodelpath)
 
             print('Done.')
 
