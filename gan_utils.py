@@ -104,17 +104,16 @@ def create_arrays(imgdir, datapath, scalingfactor):
     return imgarray_HR, imgarray_LR
 
 
-def dataprep(datapath, tfrecordpath, scalingfactor, mode, return_array=False):
-    # Check datapath and break if not valid
+def generate_LRHR(datapath, scalingfactor, filename):
+    # Check datapath and .nc file and break if not valid
     if not datapath:
         warn('No relative path to the .nc training file was given.', Warning)
         raise FileNotFoundError
-
-    filename = datapath.split('/')[-1]
-    datapath = os.path.join(os.getcwd(), f'{datapath}.nc')
-    if not os.path.isfile(datapath):
-        warn(f'The .nc file at the path {datapath} does not exist.', Warning)
-        raise FileNotFoundError
+    else:
+        datapath = os.path.join(os.getcwd(), f'{datapath}.nc')
+        if not os.path.isfile(datapath):
+            warn(f'The .nc file at the path {datapath} does not exist.', Warning)
+            raise FileNotFoundError
 
     # set imgdir and create if necessary
     imgdir = os.path.join(os.getcwd(), f'Images\\{filename}_{scalingfactor}xSR')
@@ -125,6 +124,7 @@ def dataprep(datapath, tfrecordpath, scalingfactor, mode, return_array=False):
     if os.path.isfile(os.path.join(os.getcwd(), f'{datapath}_imgs_HR.npy')):
         imgarray_HR = np.load(os.path.join(os.getcwd(), f'{datapath}_imgs_HR.npy'))
         imgarray_LR = np.load(os.path.join(os.getcwd(), f'{datapath}_imgs_LR.npy'))
+        return imgarray_HR, imgarray_LR
 
     else:
         # create tempmaps and adjust map to scaling factor size
@@ -132,32 +132,45 @@ def dataprep(datapath, tfrecordpath, scalingfactor, mode, return_array=False):
             tempmaps = create_tempmaps(datapath, filename, scalingfactor)
         else:
             tempmaps = np.load(os.path.join(os.getcwd(), f'Data/{filename}_{scalingfactor}xSR_HR.npy'))
-        imgarray_HR, imgarray_LR = create_images(imgdir, datapath, tempmaps, scalingfactor)
 
-    # generate TFRecords from imgarrays
-    if mode=='train':
-        print(f'\nGenerating .tfrecord from {filename}.nc\n')
-        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_train.tfrecord'), data_HR=imgarray_HR,
-                           data_LR=imgarray_LR, mode='train')
-        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=imgarray_LR, mode='test')
+        return create_images(imgdir, datapath, tempmaps, scalingfactor)
 
-    elif mode=='pretrain':
+
+def dataprep(datapath, tfrecordpath, scalingfactor, mode):
+    # generate LR and HR image arrays
+    filename = datapath.split('/')[-1]
+    imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor, filename)
+
+    # PRETRAINING
+    if mode == 'pretrain':
+        print(f'\nGenerating Pretraining dataset from {filename}.nc\n')
         generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
 
+    # TRAINING
+    elif mode == 'train':
+        LR_train, LR_test, HR_train, HR_test = train_test_split(imgarray_LR, imgarray_HR)
+        print(f'\nGenerating Training dataset from {filename}.nc\n')
+        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_train.tfrecord'), data_HR=HR_train,
+                           data_LR=LR_train, mode='train')
+        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=LR_test, mode='test')
+        return HR_test
+
+    # INFERENCE
     elif mode == 'inference':
-
-
-    if return_array:
+        print(f'\nGenerating Inference dataset from {filename}.nc\n')
+        generate_TFRecords(os.path.join(os.getcwd(), f'Data/{filename}_test.tfrecord'), data_LR=imgarray_LR, mode='test')
         return imgarray_HR
 
 
-def train_test_split(imgarrays, test_size=0.2):
-    i = int((1 - test_size) * imgarrays.shape[0])
-    o = np.random.permutation(imgarrays.shape[0])
 
-    imgarrays_train, imgarrays_test = np.split(np.take(imgarrays, o, axis=0), [i])
+def train_test_split(imgarrayLR, imgarrayHR, test_size=0.2):
+    i = int((1 - test_size) * imgarrayLR.shape[0])
+    o = np.random.permutation(imgarrayLR.shape[0])
 
-    return imgarrays_train, imgarrays_test
+    imgarrayLR_train, imgarrayLR_test = np.split(np.take(imgarrayLR, o, axis=0), [i])
+    imgarrayHR_train, imgarrayHR_test = np.split(np.take(imgarrayHR, o, axis=0), [i])
+
+    return imgarrayLR_train, imgarrayLR_test, imgarrayHR_train, imgarrayHR_test
 
 
 def start_timer():
