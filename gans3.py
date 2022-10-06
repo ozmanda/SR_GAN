@@ -76,16 +76,17 @@ if __name__ == '__main__':
         # check if tfrecord exists, otherwise generate it
         tfrecord_pretrain = os.path.join(os.getcwd(), f'{args.pretraindata}_pretrain.tfrecord')
         if not os.path.isfile(tfrecord_pretrain):
-            _ = dataprep(args.pretraindata, tfrecord_pretrain, args.scalingfactor, 'pretrain')
+            dataprep(args.pretraindata, tfrecord_pretrain, args.scalingfactor, 'pretrain')
 
         # initialise phiregan
-        phiregans = PhIREGANs(data_type='temperature',
-                              N_epochs_pretrain=args.epochspretrain)
+        phiregans = PhIREGANs(data_type='temperature', N_epochs_pretrain=args.epochspretrain)
 
-        # pretrain model using provided dataset, without using another pretrained model (model_path==None)
+        # pretrain model using provided dataset, without using another pretrained model (pretrainedmodel_path==None)
         start_timer()
         model_dir = phiregans.pretrain(r=[args.scalingfactor], model_path=args.pretrainedmodelspath,
-                                       data_path=tfrecord_pretrain, batch_size=args.batchsize)
+                                       data_path=tfrecord_pretrain, batch_size=args.batchsize,
+                                       pretrainedmodel_path=os.path.join(args.pretrainedmodelspath, args.pretrainedmodelname)
+                                       if args.pretrainedmodelname else None)
         times['pretraintime'] = end_timer()
 
     # TRAINING
