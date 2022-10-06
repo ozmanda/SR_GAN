@@ -18,6 +18,7 @@ ___
 - TensorFlow v1.12
 - numpy v1.15
 - matplotlib v3.1
+- netCDF4 1.4.1 --> newer versions produce a DLL loader error when in debug mode ¯\_(ツ)_/¯
 
 A conda environment YML file, `tf_env.yml` has been provided for your convenience. 
 
