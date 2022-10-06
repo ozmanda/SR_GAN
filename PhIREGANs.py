@@ -156,7 +156,6 @@ class PhIREGANs:
 
                 if (epoch % self.save_every) == 0:
                     model_dir = os.path.join(model_path, f'{self.model_name}/{"{0:05d}".format(epoch)}')
-                    model_dir = os.path.join(model_path, '/'.join([self.model_name, '{0:05d}'.format(epoch)]))
                     if not os.path.exists(model_dir):
                         os.makedirs(model_dir)
                     saved_model = '/'.join([model_dir, 'cnn'])
@@ -177,7 +176,7 @@ class PhIREGANs:
 
         return saved_model
 
-    def train(self, r, data_path, model_path, batch_size=100, alpha_advers=0.001):
+    def train(self, r, data_path, pretrainedmodelpath, model_path, batch_size=100, alpha_advers=0.001):
         '''
             This method trains the generator using a disctiminator/adversarial training. 
             This method should be called after a sufficiently pretrained generator has been saved.
@@ -301,8 +300,8 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
-                    g_model_dir = '/'.join([self.model_name, 'gan{0:05d}'.format(epoch)])
-                    gd_model_dir = '/'.join([self.model_name, 'gan-all{0:05d}'.format(epoch)])
+                    g_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_{0:05d}".format(epoch)}')
+                    gd_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_discriminator_{0:05d}".format(epoch)}')
                     if not os.path.exists(self.model_name):
                         os.makedirs(self.model_name)
                     g_saved_model = '/'.join([g_model_dir, 'gan'])
@@ -316,12 +315,12 @@ class PhIREGANs:
                 print('Epoch generator training loss=%.5f, discriminator training loss=%.5f' % (g_loss, d_loss))
                 print('Epoch took %.2f seconds\n' % (time() - start_time), flush=True)
 
-            g_model_dir = '/'.join([self.model_name, 'gan'])
-            gd_model_dir = '/'.join([self.model_name, 'gan-all'])
+            g_model_dir = os.path.join(model_path, f'{self.model_name}/generator')
+            gd_model_dir = os.path.join(model_path, f'{self.model_name}/generator_discriminator')
             if not os.path.exists(self.model_name):
                 os.makedirs(self.model_name)
-            g_saved_model = '/'.join([g_model_dir, 'gan'])
-            gd_saved_model = '/'.join([gd_model_dir, 'gan'])
+            g_saved_model = os.path.join(g_model_dir, 'gen')
+            gd_saved_model = os.path.join(gd_model_dir, 'gd')
             g_saver.save(sess, g_saved_model)
             gd_saver.save(sess, gd_saved_model)
 

@@ -111,7 +111,8 @@ if __name__ == '__main__':
         start_timer()
         model_dir = phiregans.train(r=[args.scalingfactor],
                                     data_path=tfrecord_train,
-                                    model_path=model_dir,
+                                    model_path=args.trainedmodelpath,
+                                    pretrainedmodelpath=model_dir,
                                     batch_size=args.batchsize)
         times['traintime'] = end_timer()
 
