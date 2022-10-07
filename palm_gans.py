@@ -108,10 +108,8 @@ if __name__ == '__main__':
 
         phiregans = PhIREGANs(data_type=args.datatype, mu_sig=None)
 
-        model_dir = phiregans.pretrain(r=[args.scaling_factor],
-                                       data_path=tfrecord_path,
-                                       model_path=model_path,
-                                       batch_size=args.batchsize)
+        model_dir = phiregans.pretrain(r=[args.scaling_factor], data_path=tfrecord_path,
+                                       pretrainedmodel_path=model_path, batch_size=args.batchsize)
 
         model_dir = phiregans.train(r=[args.scaling_factor],
                                     data_path=tfrecord_path,

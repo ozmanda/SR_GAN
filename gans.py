@@ -102,10 +102,8 @@ if __name__ == '__main__':
                               N_epochs_pretrain=args.epochs_pretrain,
                               N_epochs_train=args.epochs_train)
 
-        model_dir = phiregans.pretrain(r=[args.scaling_factor],
-                                       data_path=tfrecord_path,
-                                       model_path=model_path,
-                                       batch_size=args.batchsize)
+        model_dir = phiregans.pretrain(r=[args.scaling_factor], data_path=tfrecord_path,
+                                       model_path=model_path, batch_size=args.batchsize)
 
         model_dir = phiregans.train(r=[args.scaling_factor],
                                     data_path=tfrecord_path,

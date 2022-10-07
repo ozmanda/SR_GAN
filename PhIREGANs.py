@@ -33,12 +33,12 @@ class PhIREGANs:
         self.LR_data_shape = None
 
         # Set various paths for where to save data
-        self.run_id = '-'.join([self.data_type, strftime('%Y%m%d-%H%M%S')])
         self.run_id = f'{self.data_type}-{strftime("%Y%m%d-%H%M%S")}'
-        self.model_name = '/'.join(['models', self.run_id])
-        self.model_name = f'models/{self.run_id}'
-        self.data_out_path = '/'.join(['data_out', self.run_id])
+        self.model_name = f'{self.run_id}'
         self.data_out_path = f'data_out/{self.run_id}'
+        # self.run_id = '-'.join([self.data_type, strftime('%Y%m%d-%H%M%S')])
+        # self.model_name = '/'.join(['models', self.run_id])
+        # self.data_out_path = '/'.join(['data_out', self.run_id])
 
     def setSave_every(self, in_save_every):
         self.save_every = in_save_every
@@ -66,7 +66,7 @@ class PhIREGANs:
         self.model_name = '/'.join(['models', self.run_id])
         self.data_out_path = '/'.join(['data_out', self.run_id])
 
-    def pretrain(self, r, data_path, model_path=None, batch_size=100):
+    def pretrain(self, r, data_path, model_path, pretrainedmodel_path=None, batch_size=100):
         """
             This method trains the generator without using a discriminator/adversarial training.
             This method should be called to sufficiently train the generator to produce decent images before
@@ -75,7 +75,7 @@ class PhIREGANs:
             inputs:
                 r          - (int array) should be array of prime factorization of amount of super-resolution to perform
                 data_path  - (string) path of training data file to load in
-                model_path - (string) path of previously trained model to load in if continuing training
+                pretrainedmodel_path - (string) path of previously trained model to load in if continuing training
                 batch_size - (int) number of images to grab per batch. decrease if running out of memory
 
             output:
@@ -115,13 +115,13 @@ class PhIREGANs:
         print('Done.')
 
         with tf.Session() as sess:
-            print('Training network ...')
+            print('Pretraining network ...')
 
             sess.run(init)
 
-            if model_path is not None:
+            if pretrainedmodel_path is not None:
                 print('Loading previously trained network...', end=' ')
-                g_saver.restore(sess, model_path)
+                g_saver.restore(sess, pretrainedmodel_path)
                 print('Done.')
 
             # Start training
@@ -155,7 +155,7 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
-                    model_dir = '/'.join([self.model_name, 'cnn{0:05d}'.format(epoch)])
+                    model_dir = os.path.join(model_path, f'{self.model_name}/{"{0:05d}".format(epoch)}')
                     if not os.path.exists(model_dir):
                         os.makedirs(model_dir)
                     saved_model = '/'.join([model_dir, 'cnn'])
@@ -166,17 +166,17 @@ class PhIREGANs:
                 print('Epoch generator training loss=%.5f' % (epoch_loss))
                 print('Epoch took %.2f seconds\n' % (time() - start_time), flush=True)
 
-            model_dir = '/'.join([self.model_name, 'cnn'])
-            if not os.path.exists(self.model_name):
-                os.makedirs(self.model_name)
-            saved_model = '/'.join([model_dir, 'cnn'])
+            model_dir = os.path.join(model_path, f'{self.model_name}/cnn')
+            if not os.path.exists(model_dir):
+                os.makedirs(model_dir)
+            saved_model = os.path.join(model_dir, 'cnn')
             g_saver.save(sess, saved_model)
 
         print('Done.')
 
         return saved_model
 
-    def train(self, r, data_path, model_path, batch_size=100, alpha_advers=0.001):
+    def train(self, r, data_path, trainedmodelpath, model_path, batch_size=100, alpha_advers=0.001):
         '''
             This method trains the generator using a disctiminator/adversarial training. 
             This method should be called after a sufficiently pretrained generator has been saved.
@@ -184,7 +184,7 @@ class PhIREGANs:
             inputs:
                 r            - (int array) should be array of prime factorization of amount of super-resolution to perform
                 data_path    - (string) path of training data file to load in
-                model_path   - (string) path of previously pretrained or trained model to load
+                trainedmodelpath   - (string) path of previously pretrained or trained model to load
                 batch_size   - (int) number of images to grab per batch. decrease if running out of memory
                 alpha_advers - (float) scaling value for the effect of the discriminator
 
@@ -194,7 +194,7 @@ class PhIREGANs:
 
         tf.reset_default_graph()
 
-        assert model_path is not None, 'Must provide path for pretrained model'
+        assert trainedmodelpath is not None, 'Must provide path for pretrained model'
 
         if self.mu_sig is None:
             self.set_mu_sig(data_path, batch_size)
@@ -234,12 +234,12 @@ class PhIREGANs:
             sess.run(init)
 
             print('Loading previously trained network...', end=' ')
-            if 'gan-all' in model_path:
+            if 'gd' in trainedmodelpath:
                 # Load both pretrained generator and discriminator networks
-                gd_saver.restore(sess, model_path)
+                gd_saver.restore(sess, trainedmodelpath)
             else:
                 # Load only pretrained generator network, start discriminator training from scratch
-                g_saver.restore(sess, model_path)
+                g_saver.restore(sess, trainedmodelpath)
 
             print('Done.')
 
@@ -300,8 +300,8 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
-                    g_model_dir = '/'.join([self.model_name, 'gan{0:05d}'.format(epoch)])
-                    gd_model_dir = '/'.join([self.model_name, 'gan-all{0:05d}'.format(epoch)])
+                    g_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_{0:05d}".format(epoch)}')
+                    gd_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_discriminator_{0:05d}".format(epoch)}')
                     if not os.path.exists(self.model_name):
                         os.makedirs(self.model_name)
                     g_saved_model = '/'.join([g_model_dir, 'gan'])
@@ -315,12 +315,12 @@ class PhIREGANs:
                 print('Epoch generator training loss=%.5f, discriminator training loss=%.5f' % (g_loss, d_loss))
                 print('Epoch took %.2f seconds\n' % (time() - start_time), flush=True)
 
-            g_model_dir = '/'.join([self.model_name, 'gan'])
-            gd_model_dir = '/'.join([self.model_name, 'gan-all'])
+            g_model_dir = os.path.join(model_path, f'{self.model_name}/generator')
+            gd_model_dir = os.path.join(model_path, f'{self.model_name}/generator_discriminator')
             if not os.path.exists(self.model_name):
                 os.makedirs(self.model_name)
-            g_saved_model = '/'.join([g_model_dir, 'gan'])
-            gd_saved_model = '/'.join([gd_model_dir, 'gan'])
+            g_saved_model = os.path.join(g_model_dir, 'gen')
+            gd_saved_model = os.path.join(gd_model_dir, 'gd')
             g_saver.save(sess, g_saved_model)
             gd_saver.save(sess, gd_saved_model)
 
