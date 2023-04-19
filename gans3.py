@@ -1,3 +1,5 @@
+import os
+
 from PhIREGANs import *
 from palm_tempmaps import *
 from netCDF4 import Dataset
@@ -34,10 +36,8 @@ if __name__ == '__main__':
     parser.add_argument('mode', type=str, help='Usage mode, either pretrain/train/inference. Default is train',
                         nargs='*', default=None)
     parser.add_argument('--pretraindata', type=str, help='relative path to the pretraining dataset', default=None)
-    parser.add_argument('--traindata', type=str, help='relative path to the netCDF training file without .nc extension',
-                        default=None)
-    parser.add_argument('--inferencedata', type=str, help='relative path to the netCDF test file without .nc extension',
-                        default=None)
+    parser.add_argument('--traindata', type=str, help='relative path to the netCDF training file', default=None, nargs='*')
+    parser.add_argument('--inferencedata', type=str, help='relative path to the netCDF test file', default=None)
 
     # Model paths
     parser.add_argument('--pretrainedmodelspath', type=str, default='models/pretrained/',
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('--trainedmodel', type=str, default=None, help='path to the model to use for inference')
 
     # Parameters
-    parser.add_argument('--scalingfactor', type=str, help='the superresolution factor, default is 5', default=5)
+    parser.add_argument('--scalingfactor', type=int, help='the superresolution factor, default is 5', default=5)
     parser.add_argument('--batchsize', type=int, help='Number of images grabbed per batch', default=100)
     parser.add_argument('--epochspretrain', type=int, help='Number of epochs for pretraining, '
                                                             'default is 10', default=None)
@@ -72,11 +72,20 @@ if __name__ == '__main__':
     # PRETRAINING
     if 'pretrain' in args.mode:
         assert args.pretraindata, 'Data for pretraining must be given'
+        assert os.path.isfile(args.pretraindata), f'File at {args.pretraindata} does not exist'
+        assert os.path.splitext(os.path.basename(args.pretraindata))[1] in ['.nc', '.json', '.tfrecord'], \
+            f'Datatype {type} is not supported. Load either .nc, .json or .tfrecord'
+
+        # if .nc or .json is given, start the dataprep process, otherwise set datapath == tfrecordpath and continue
+        if os.path.splitext(args.pretraindata)[1] != '.tfrecord':
+            tfrecord_pretrain = dataprep(args.pretraindata, args.scalingfactor, mode=args.mode)
+        else:
+            tfrecord_pretrain = args.pretraindata
 
         # check if tfrecord exists, otherwise generate it
-        tfrecord_pretrain = os.path.join(os.getcwd(), f'{args.pretraindata}_pretrain.tfrecord')
-        if not os.path.isfile(tfrecord_pretrain):
-            dataprep(args.pretraindata, tfrecord_pretrain, args.scalingfactor, 'pretrain')
+        # tfrecord_pretrain = os.path.join(os.getcwd(), f'{args.pretraindata}_pretrain.tfrecord')
+        # if not os.path.isfile(tfrecord_pretrain):
+        #     dataprep(args.pretraindata, tfrecord_pretrain, args.scalingfactor, 'pretrain')
 
         # initialise phiregan
         phiregans = PhIREGANs(data_type='temperature', N_epochs_pretrain=args.epochspretrain)
@@ -90,19 +99,27 @@ if __name__ == '__main__':
 
     # TRAINING
     if 'train' in args.mode:
-        # determine if model must be pretrained
+        # assert data is provided and load or generate if necessary
+        assert args.traindata, 'Training data must be provided'
+        assert os.path.basename(args.traindata).splitext()[1] in ['.nc', '.json', '.tfrecord'], \
+            f'Datatype {type} is not supported. Load either .nc, .json or .tfrecord'
+
+        # ensure pretrained model was provided if no model was pretrained
         if not model_dir:
             assert args.pretrainedmodel, 'You must either pretrain a model before training or provide a pretrained model'
             model_dir = args.pretrainedmodel
 
-        # assert data is provided and load or generate if necessary
-        assert args.traindata, 'Training data must be provided'
-        tfrecord_train = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_train.tfrecord')
-        tfrecord_test = os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_test.tfrecrord')
-        if not os.path.isfile(tfrecord_train) or not os.path.isfile(tfrecord_test):
-            imgarray_HR = dataprep(args.traindata, [tfrecord_train, tfrecord_test], args.scalingfactor, 'train')
+        if len(args.traindata) == 1:
+            assert os.path.splitext(args.traindata[0])[1] != '.tfrecord', 'If a .tfrecord is given, both train and test' \
+                                                                          'files must be specified'
+            tfrecord_train, tfrecord_test = dataprep(args.traindata[0], args.scalingfactor, mode=args.mode)
+
+        elif len(args.traindata) == 2:
+            tfrecord_train, tfrecord_test = args.traindata
+
         else:
-            imgarray_HR = np.load(os.path.join(os.getcwd(), f'Data/{args.traindata.split("/")[-1]}_test_HR.npy'))
+            warn(f'More than 3 arguments were given for the flat --traindata, at most 2 can be given')
+            raise ValueError
 
         # initialise empty PhIRE-GAN and begin training
         phiregans = PhIREGANs(data_type='temperature', N_epochs_train=args.epochstrain)
@@ -136,7 +153,13 @@ if __name__ == '__main__':
 
     # INFERENCE
     if 'inference' in args.mode:
-        # assert data is provided and load or generate if necessary
+        # assert required parameters are provided and valid
+        assert args.inferencedata, 'Data for pretraining must be given'
+        assert os.path.isfile(args.inferencedata), f'File at {args.pretraindata} does not exist'
+        assert os.path.basename(args.inferencedata).splitext()[1] in ['.nc', '.json', '.tfrecord'], \
+            f'Datatype {type} is not supported. Load either .nc, .json or .tfrecord'
+
+        # load or generate data
         tfrecord_inference = os.path.join(os.getcwd(), f'Data/{args.inferencedata.split("/")[-1]}_test.tfrecord')
         if not os.path.isfile(tfrecord_inference):
             imgarray_HR = dataprep(args.inferencedata, tfrecord_inference, args.scalingfactor, 'inference')
@@ -166,7 +189,7 @@ if __name__ == '__main__':
                              f'Datapath: {args.inferencedata}\n',
                              f'Scaling factor: {args.scalingfactor}\n',
                              f'Batch size: {args.batchsize}\n',
-                             f'Inference Time: {time}'])
+                             f'Times: {times[0]} pretraining, {times[1]} training, {times[2]} testing'])
         infofile.close()
 
         mse = (1/len(imgarray_HR)) * np.sum((imgarray_HR-data_out)**2)
