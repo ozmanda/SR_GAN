@@ -3,19 +3,19 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 def conv_layer_2d(x, filter_shape, stride, trainable=True):
-    W = tf.get_variable(
+    W = tf.compat.v1.get_variable(
         name='weight',
         shape=filter_shape,
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.contrib.layers.xavier_initializer(),
         trainable=trainable)
-    b = tf.get_variable(
+    b = tf.compat.v1.get_variable(
         name='bias',
         shape=[filter_shape[-1]],
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.compat.v1.contrib.layers.xavier_initializer(),
         trainable=trainable)
-    x = tf.nn.bias_add(tf.nn.conv2d(
+    x = tf.nn.bias_add(tf.compat.v1.nn.conv2d(
         input=x,
         filter=W,
         strides=[1, stride, stride, 1],
@@ -24,20 +24,22 @@ def conv_layer_2d(x, filter_shape, stride, trainable=True):
     return x
 
 def deconv_layer_2d(x, filter_shape, output_shape, stride, trainable=True):
+    # according to https://stackoverflow.com/questions/64255154/change-tf-contrib-layers-xavier-initializer-to-2-0-0,
+    # tf.contrib.layers.xavier_initializer() has been changed to tf.keras.initializers.GlorotUniform()
     x = tf.pad(x, [[0,0], [3,3], [3,3], [0,0]], mode='reflect')
-    W = tf.get_variable(
+    W = tf.compat.v1.get_variable(
         name='weight',
         shape=filter_shape,
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.keras.initializers.GlorotUniform(),
         trainable=trainable)
-    b = tf.get_variable(
+    b = tf.compat.v1.get_variable(
         name='bias',
         shape=[output_shape[-1]],
         dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer(),
+        initializer=tf.keras.initializers.GlorotUniform(),
         trainable=trainable)
-    x = tf.nn.bias_add(tf.nn.conv2d_transpose(
+    x = tf.nn.bias_add(tf.compat.v1.nn.conv2d_transpose(
         value=x,
         filter=W,
         output_shape=output_shape,
@@ -56,13 +58,13 @@ def flatten_layer(x):
 
 def dense_layer(x, out_dim, trainable=True):
     in_dim = x.get_shape().as_list()[-1]
-    W = tf.get_variable(
+    W = tf.compat.v1.get_variable(
         name='weight',
         shape=[in_dim, out_dim],
         dtype=tf.float32,
-        initializer=tf.truncated_normal_initializer(stddev=0.02),
+        initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.02),
         trainable=trainable)
-    b = tf.get_variable(
+    b = tf.compat.v1.get_variable(
         name='bias',
         shape=[out_dim],
         dtype=tf.float32,
@@ -135,19 +137,20 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 def downscale_image(x, K):
-    tf.reset_default_graph()
+    tf.compat.v1.reset_default_graph()
+    tf.compat.v1.disable_eager_execution()
 
     if x.ndim == 3:
         x = x.reshape((1, x.shape[0], x.shape[1], x.shape[2]))
     if x.ndim == 2:
         x = x.reshape((1, 1, x.shape[0], x.shape[1]))
 
-    x_in = tf.placeholder(tf.float64, [None, x.shape[1], x.shape[2], x.shape[3]])
+    x_in = tf.compat.v1.placeholder(tf.float64, [None, x.shape[1], x.shape[2], x.shape[3]])
 
     weight = tf.constant(1.0/K**2, shape=[K, K, x.shape[3], x.shape[3]], dtype=tf.float64)
-    downscaled = tf.nn.conv2d(x_in, filter=weight, strides=[1, K, K, 1], padding='SAME')
+    downscaled = tf.compat.v1.nn.conv2d(x_in, filter=weight, strides=[1, K, K, 1], padding='SAME')
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         ds_out = sess.run(downscaled, feed_dict={x_in: x})
 
     return ds_out
@@ -175,7 +178,7 @@ def generate_TFRecords(filename, data_HR=None, data_LR=None, mode='test'):
         assert data_LR is not None, 'In testing mode, low-resolution data must be given'
         shape = data_LR.shape[0]
 
-    with tf.python_io.TFRecordWriter(filename) as writer:
+    with tf.compat.v1.python_io.TFRecordWriter(filename) as writer:
         for j in range(shape):
             if mode == 'train':
                 h_HR, w_HR, c = data_HR[j, ...].shape
