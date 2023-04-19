@@ -1,7 +1,10 @@
 import os
+import _pickle as cPickle
 import numpy as np
 from warnings import warn
 from netCDF4 import Dataset
+
+import utils
 from utils import downscale_image, generate_TFRecords
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
@@ -9,6 +12,9 @@ import time
 
 
 def create_tempmaps(datapath, filename, scalingfactor):
+    """
+    Loads temperature maps from .nc file and flattens the layer dimension to return a [layers x time, lat, lon] array
+    """
     # try to load .nc file and give warning if it cannot be loaded.
     try:
         # load maps, extract tempmaps, creat np.array and replace fill values -9999 with 0
@@ -21,17 +27,15 @@ def create_tempmaps(datapath, filename, scalingfactor):
              f'variable has a name other than "theta_xy"', Warning)
         raise ValueError
 
-    tempmaps = tempmaps[:, :,
-               0:tempmaps.shape[2] - tempmaps.shape[2] % scalingfactor,
-               0:tempmaps.shape[3] - tempmaps.shape[3] % scalingfactor]
-    tempmaps = tempmaps.reshape((-1, tempmaps.shape[2], tempmaps.shape[3], 1))
+    tempmaps = np.reshape(tempmaps, newshape=(tempmaps.shape[0]*tempmaps.shape[1],
+                                              tempmaps.shape[2], tempmaps.shape[3]))
     tempmaps = tempmaps.astype('float64')
-    np.save(os.path.join(os.getcwd(), f'Data/{filename}.npy'), tempmaps)
+    # np.save(os.path.join(os.getcwd(), f'Data/{filename}.npy'), tempmaps)
 
     return tempmaps
 
 
-def create_images(imgdir, datapath, tempmaps, scalingfactor):
+def create_images(imgdir, HR_array, LR_array):
     norm = Normalize(vmin=2, vmax=42)
     cmap = plt.get_cmap('viridis')
     cmap.set_bad('white', 1.)
@@ -40,13 +44,13 @@ def create_images(imgdir, datapath, tempmaps, scalingfactor):
     # set monitor DPI (https://www.infobyip.com/detectmonitordpi.php)
     # required to save images at exact resolution using plt.savefig
     mydpi = 96
-    figsize_HR = (tempmaps.shape[1]/mydpi, tempmaps.shape[2]/mydpi)
-    figsize_LR = (tempmaps.shape[1]/mydpi/scalingfactor, tempmaps.shape[2]/mydpi/scalingfactor)
+    figsize_HR = (HR_array.shape[1]/mydpi, HR_array.shape[2]/mydpi)
+    figsize_LR = (LR_array.shape[1]/mydpi, LR_array.shape[2]/mydpi)
 
     print('Generating HR and LR images')
-    for idx in range(tempmaps.shape[0]):
+    for idx in range(HR_array.shape[0]):
         if not os.path.isfile(os.path.join(imgdir, f'tempmap{idx}_HR.png')):
-            tempmap = tempmaps[idx, :, :, 0]
+            tempmap = HR_array[idx, :, :]
             plt.figure(figsize=figsize_HR, dpi=mydpi)
             plt.imshow(norm(tempmap), cmap=cmap)
             plt.axis('off')
@@ -54,8 +58,7 @@ def create_images(imgdir, datapath, tempmaps, scalingfactor):
             plt.close('all')
 
         if not os.path.isfile(os.path.join(imgdir, f'tempmap{idx}_LR.png')):
-            tempmap = tempmaps[idx, :, :, :]
-            tempmap = downscale_image(np.array(tempmap), scalingfactor)[0, :, :, 0]
+            tempmap = LR_array[idx, :, :]
             plt.figure(figsize=figsize_LR, dpi=mydpi)
             plt.imshow(norm(tempmap), cmap=cmap)
             plt.axis('off')
@@ -63,7 +66,7 @@ def create_images(imgdir, datapath, tempmaps, scalingfactor):
             plt.close('all')
 
     # create .npy files and save
-    return create_arrays(imgdir, datapath, scalingfactor)
+    # return create_arrays(imgdir, datapath, scalingfactor)
 
 
 def create_arrays(imgdir, datapath, scalingfactor):
@@ -104,64 +107,84 @@ def create_arrays(imgdir, datapath, scalingfactor):
     return imgarray_HR, imgarray_LR
 
 
-def generate_LRHR(datapath, scalingfactor, filename):
-    # Check datapath and .nc file and break if not valid
-    if not datapath:
-        warn('No relative path to the .nc training file was given.', Warning)
-        raise FileNotFoundError
+def adjust_dimensions(array, sf):
+    """
+    Adjusts an array to be scalable to the given scaling factor, meaning that all dimenions are divisible by the
+    scaling factor.
+    """
+    return array[:, 0:array.shape[1] - array.shape[1] % sf,  0:array.shape[2] - array.shape[2] % sf]
+
+def generate_LRHR(datapath, scalingfactor):
+    """
+    Load data from either .json or .nc to create images and .tfrecord
+    """
+    filename, type = os.path.splitext(os.path.basename(datapath))
+
+    # Load HR image array either from .nc or .json
+    if type == '.nc':
+        imgarray_HR = create_tempmaps(datapath, filename, scalingfactor)
+    elif type == '.json':
+        with open(datapath, 'rb') as file:
+            imgarray_HR = cPickle.load(file)
+            file.close()
     else:
-        datapath = os.path.join(os.getcwd(), f'{datapath}.nc')
-        if not os.path.isfile(datapath):
-            warn(f'The .nc file at the path {datapath} does not exist.', Warning)
-            raise FileNotFoundError
+        warn(f'Data type {type} is not supported')
+        raise TypeError
 
-    # set imgdir and create if necessary
-    imgdir = os.path.join(os.getcwd(), f'Images\\{filename}_{scalingfactor}xSR')
-    if not os.path.isdir(imgdir):
-        os.mkdir(imgdir)
+    # adjust array dimensions to be divisible by the scaling factor and then generate LR image array
+    imgarray_HR = adjust_dimensions(imgarray_HR, scalingfactor)
+    imgarray_LR = utils.downscale_image(imgarray_HR, scalingfactor)
 
-    # check if .npy files available to generate TFRecords with - only need to check one
-    if os.path.isfile(os.path.join(os.getcwd(), f'{datapath}_imgs_HR.npy')):
-        imgarray_HR = np.load(os.path.join(os.getcwd(), f'{datapath}_imgs_HR.npy'))
-        imgarray_LR = np.load(os.path.join(os.getcwd(), f'{datapath}_imgs_LR.npy'))
-        return imgarray_HR, imgarray_LR
-
-    else:
-        # create tempmaps and adjust map to scaling factor size
-        if not os.path.isfile(os.path.join(os.getcwd(), f'Data/{filename}_{scalingfactor}xSR.npy')):
-            tempmaps = create_tempmaps(datapath, filename, scalingfactor)
-        else:
-            tempmaps = np.load(os.path.join(os.getcwd(), f'Data/{filename}_{scalingfactor}xSR_HR.npy'))
-
-        return create_images(imgdir, datapath, tempmaps, scalingfactor)
+    return imgarray_HR, imgarray_LR
 
 
-def dataprep(datapath, tfrecordpath, scalingfactor, mode):
+def dataprep(datapath, scalingfactor, mode=None):
+    """
+    Recieves datapath for either a .nc or .json file, for which it generates the HR/LR images and the .tfrecord suitable
+    for GAN usage and returns the path to the saved .tfrecord.
+    """
     # generate LR and HR image arrays
-    filename = datapath.split('/')[-1]
-    imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor, filename)
+    filename, type = os.path.splitext(os.path.basename(datapath))
 
     # PRETRAINING
-    if mode == 'pretrain':
-        assert tfrecordpath, 'For pretraining, a tfrecordpath must be given'
-        print(f'\nGenerating Pretraining dataset from {filename}.nc\n')
-        generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
+    if 'pretrain' in mode:
+        tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_pretrain.tfrecord')
+        if not os.path.isfile(tfrecordpath):
+            print(f'\nGenerating Pretraining dataset from {filename}{type}\n')
+            imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
+            generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
+            return
 
     # TRAINING
-    elif mode == 'train':
-        LR_train, LR_test, HR_train, HR_test = train_test_split(imgarray_LR, imgarray_HR)
-        print(f'\nGenerating Training dataset from {filename}.nc\n')
-        generate_TFRecords(tfrecordpath[0], data_HR=HR_train, data_LR=LR_train, mode='train')
-        generate_TFRecords(tfrecordpath[1], data_LR=LR_test, mode='test')
-        np.save(os.path.join(os.getcwd(), f'Data/{datapath.split("/")[-1]}_test_HR.npy'), HR_test)
-        return HR_test
+    elif 'train' in mode:
+        tfrecordpath_train = os.path.join(os.path.dirname(datapath), f'{filename}_train.tfrecord')
+        tfrecordpath_test = os.path.join(os.path.dirname(datapath), f'{filename}_test.tfrecord')
+        if not os.path.isfile(tfrecordpath_train) or not os.path.isfile(tfrecordpath_test):
+            print(f'\nGenerating Training dataset from {filename}{type}\n')
+            imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
+            LR_train, LR_test, HR_train, HR_test = train_test_split(imgarray_LR, imgarray_HR)
+            generate_TFRecords(tfrecordpath_train, data_HR=HR_train, data_LR=LR_train, mode='train')
+            generate_TFRecords(tfrecordpath_test, data_LR=LR_test, mode='test')
+            np.save(os.path.join(os.getcwd(), f'Data/{datapath.split("/")[-1]}_test_HR.npy'), HR_test)
+
+            tfrecordpath = [tfrecordpath_train, tfrecordpath_test]
 
     # INFERENCE
-    elif mode == 'inference':
-        print(f'\nGenerating Inference dataset from {filename}.nc\n')
-        generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
-        return imgarray_HR
+    elif 'inference' in mode:
+        tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_inference.tfrecord')
+        if not os.path.isfile(tfrecordpath):
+            print(f'\nGenerating Inference dataset from {filename}{type}\n')
+            # THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
+            imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
+            generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
 
+    # set imgdir and create if necessary, then generate images
+    imgdir = os.path.join(os.getcwd(), f'Images/{filename}_{scalingfactor}xSR')
+    if not os.path.isdir(imgdir):
+        os.makedirs(imgdir)
+        create_images(imgdir, imgarray_HR, imgarray_LR)
+
+    return tfrecordpath
 
 def train_test_split(imgarrayLR, imgarrayHR, test_size=0.2):
     i = int((1 - test_size) * imgarrayLR.shape[0])
