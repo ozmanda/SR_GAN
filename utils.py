@@ -3,17 +3,19 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 def conv_layer_2d(x, filter_shape, stride, trainable=True):
+    # according to https://stackoverflow.com/questions/64255154/change-tf-contrib-layers-xavier-initializer-to-2-0-0,
+    # tf.contrib.layers.xavier_initializer() has been changed to tf.keras.initializers.GlorotUniform()
     W = tf.compat.v1.get_variable(
         name='weight',
         shape=filter_shape,
         dtype=tf.float32,
-        initializer=tf.compat.v1.contrib.layers.xavier_initializer(),
+        initializer=tf.keras.initializers.GlorotUniform(),
         trainable=trainable)
     b = tf.compat.v1.get_variable(
         name='bias',
         shape=[filter_shape[-1]],
         dtype=tf.float32,
-        initializer=tf.compat.v1.contrib.layers.xavier_initializer(),
+        initializer=tf.keras.initializers.GlorotUniform(),
         trainable=trainable)
     x = tf.nn.bias_add(tf.compat.v1.nn.conv2d(
         input=x,
