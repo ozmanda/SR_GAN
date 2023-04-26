@@ -221,8 +221,8 @@ class PhIREGANs:
         ds = tf.data.TFRecordDataset(data_path)
         ds = ds.map(lambda xx: self._parse_train_(xx, self.mu_sig)).shuffle(1000).batch(batch_size)
 
-        iterator = tf.data.Iterator.from_structure(ds.output_types,
-                                                   ds.output_shapes)
+        iterator = tf.compat.v1.data.Iterator.from_structure(tf.compat.v1.data.get_output_types(ds),
+                                                   tf.compat.v1.data.get_output_shapes(ds))
         idx, LR_out, HR_out = iterator.get_next()
 
         init_iter = iterator.make_initializer(ds)
@@ -302,8 +302,10 @@ class PhIREGANs:
                 if (epoch % self.save_every) == 0:
                     g_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_{0:05d}".format(epoch)}')
                     gd_model_dir = os.path.join(model_path, f'{self.model_name}/{"generator_discriminator_{0:05d}".format(epoch)}')
-                    if not os.path.exists(self.model_name):
-                        os.makedirs(self.model_name)
+                    if not os.path.exists(g_model_dir):
+                        os.makedirs(g_model_dir)
+                    if not os.path.exists(gd_model_dir):
+                        os.makedirs(gd_model_dir)
                     g_saved_model = '/'.join([g_model_dir, 'gan'])
                     gd_saved_model = '/'.join([gd_model_dir, 'gan'])
                     g_saver.save(sess, g_saved_model)
@@ -317,8 +319,10 @@ class PhIREGANs:
 
             g_model_dir = os.path.join(model_path, f'{self.model_name}/generator')
             gd_model_dir = os.path.join(model_path, f'{self.model_name}/generator_discriminator')
-            if not os.path.exists(self.model_name):
-                os.makedirs(self.model_name)
+            if not os.path.exists(g_model_dir):
+                os.makedirs(g_model_dir)
+            if not os.path.exists(gd_model_dir):
+                os.makedirs(gd_model_dir)
             g_saved_model = os.path.join(g_model_dir, 'gen')
             gd_saved_model = os.path.join(gd_model_dir, 'gd')
             g_saver.save(sess, g_saved_model)
@@ -362,8 +366,8 @@ class PhIREGANs:
         ds = tf.data.TFRecordDataset(data_path)
         ds = ds.map(lambda xx: self._parse_test_(xx, self.mu_sig)).batch(batch_size)
 
-        iterator = tf.data.Iterator.from_structure(ds.output_types,
-                                                   ds.output_shapes)
+        iterator = tf.compat.v1.data.Iterator.from_structure(tf.compat.v1.data.get_output_types(ds),
+                                                   tf.compat.v1.data.get_output_shapes(ds))
         idx, LR_out = iterator.get_next()
 
         init_iter = iterator.make_initializer(ds)
@@ -542,6 +546,7 @@ class PhIREGANs:
                 sets self.LR_data_shape
         '''
         print('Loading data ...', end=' ')
+        tf.compat.v1.disable_eager_execution()
         dataset = tf.data.TFRecordDataset(data_path)
         dataset = dataset.map(self._parse_test_).batch(1)
 
