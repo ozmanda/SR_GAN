@@ -144,47 +144,53 @@ def dataprep(datapath, scalingfactor, mode=None):
     for GAN usage and returns the path to the saved .tfrecord.
     """
     # generate LR and HR image arrays
-    filename, type = os.path.splitext(os.path.basename(datapath))
+    filename, ext = os.path.splitext(os.path.basename(datapath))
+    # set imgdir and create if necessary, then generate images
+    imgdir = os.path.join(os.getcwd(), f'Images/{filename}_{scalingfactor}xSR')
 
     # PRETRAINING
-    if 'pretrain' in mode:
+    if 'pretrain' == mode:
         tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_pretrain.tfrecord')
         if not os.path.isfile(tfrecordpath):
-            print(f'\nGenerating Pretraining dataset from {filename}{type}\n')
+            print(f'\nGenerating Pretraining dataset from {filename}{ext}\n')
             imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
             generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
-            return
+            print(f'utils: {tfrecordpath}')
+        return tfrecordpath
 
     # TRAINING
-    elif 'train' in mode:
+    elif 'train' == mode:
         tfrecordpath_train = os.path.join(os.path.dirname(datapath), f'{filename}_train.tfrecord')
         tfrecordpath_test = os.path.join(os.path.dirname(datapath), f'{filename}_test.tfrecord')
-        if not os.path.isfile(tfrecordpath_train) or not os.path.isfile(tfrecordpath_test):
-            print(f'\nGenerating Training dataset from {filename}{type}\n')
+        if not os.path.isfile(tfrecordpath_train) or not os.path.isfile(tfrecordpath_test) or not os.path.isdir(imgdir):
+            print(f'\nGenerating Training dataset from {filename}{ext}\n')
             imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
+            # make images if necessary
+            if not os.path.isdir(imgdir):
+                os.makedirs(imgdir)
+                create_images(imgdir, imgarray_HR, imgarray_LR)
             LR_train, LR_test, HR_train, HR_test = train_test_split(imgarray_LR, imgarray_HR)
             generate_TFRecords(tfrecordpath_train, data_HR=HR_train, data_LR=LR_train, mode='train')
             generate_TFRecords(tfrecordpath_test, data_LR=LR_test, mode='test')
-            np.save(os.path.join(os.getcwd(), f'Data/{datapath.split("/")[-1]}_test_HR.npy'), HR_test)
+            np.save(os.path.join(os.path.dirname(datapath), f'{filename}_test_HR.npy'), HR_test)
+        else:
+            HR_test = np.load(os.path.join(os.path.dirname(datapath), f'{filename}_test_HR.npy'))
 
-            tfrecordpath = [tfrecordpath_train, tfrecordpath_test]
+        return tfrecordpath_train, tfrecordpath_test, HR_test
 
     # INFERENCE
-    elif 'inference' in mode:
+    elif 'inference' == mode:
         tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_inference.tfrecord')
         if not os.path.isfile(tfrecordpath):
-            print(f'\nGenerating Inference dataset from {filename}{type}\n')
+            print(f'\nGenerating Inference dataset from {filename}{ext}\n')
             # THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
             imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
+            np.save(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'), imgarray_HR)
             generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
-
-    # set imgdir and create if necessary, then generate images
-    imgdir = os.path.join(os.getcwd(), f'Images/{filename}_{scalingfactor}xSR')
-    if not os.path.isdir(imgdir):
-        os.makedirs(imgdir)
-        create_images(imgdir, imgarray_HR, imgarray_LR)
-
-    return tfrecordpath
+            return tfrecordpath, imgarray_HR
+        else:
+            imgarray_HR = np.load(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'))
+            return tfrecordpath, imgarray_HR
 
 def train_test_split(imgarrayLR, imgarrayHR, test_size=0.2):
     i = int((1 - test_size) * imgarrayLR.shape[0])
