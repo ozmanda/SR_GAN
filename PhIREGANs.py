@@ -66,7 +66,7 @@ class PhIREGANs:
         self.model_name = '/'.join(['models', self.run_id])
         self.data_out_path = '/'.join(['data_out', self.run_id])
 
-    def pretrain(self, r, data_path, model_path, pretrainedmodel_path=None, batch_size=100):
+    def pretrain(self, r, data_path, save_path, pretrainedmodel_path=None, batch_size=100):
         """
             This method trains the generator without using a discriminator/adversarial training.
             This method should be called to sufficiently train the generator to produce decent images before
@@ -75,6 +75,7 @@ class PhIREGANs:
             inputs:
                 r          - (int array) should be array of prime factorization of amount of super-resolution to perform
                 data_path  - (string) path of training data file to load in
+                save_path - (string) path to save the pretrained model
                 pretrainedmodel_path - (string) path of previously trained model to load in if continuing training
                 batch_size - (int) number of images to grab per batch. decrease if running out of memory
 
@@ -155,7 +156,7 @@ class PhIREGANs:
                     pass
 
                 if (epoch % self.save_every) == 0:
-                    model_dir = os.path.join(model_path, f'{self.model_name}/{"{0:05d}".format(epoch)}')
+                    model_dir = os.path.join(save_path, f'{self.model_name}/{"{0:05d}".format(epoch)}')
                     if not os.path.exists(model_dir):
                         os.makedirs(model_dir)
                     saved_model = '/'.join([model_dir, 'cnn'])
@@ -166,7 +167,7 @@ class PhIREGANs:
                 print('Epoch generator training loss=%.5f' % (epoch_loss))
                 print('Epoch took %.2f seconds\n' % (time() - start_time), flush=True)
 
-            model_dir = os.path.join(model_path, f'{self.model_name}/cnn')
+            model_dir = os.path.join(save_path, f'{self.model_name}/cnn')
             if not os.path.exists(model_dir):
                 os.makedirs(model_dir)
             saved_model = os.path.join(model_dir, 'cnn')
