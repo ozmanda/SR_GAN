@@ -1,14 +1,20 @@
 import os
-import _pickle as cPickle
+import pickle as cPickle
 import numpy as np
 from warnings import warn
 from netCDF4 import Dataset
-
 import utils
 from utils import downscale_image, generate_TFRecords
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import time
+
+
+def check_file(path, mode=None): 
+    assert path, f'No file given for {mode}'
+    assert os.path.isfile(path), f'File {path} does not exist'
+    assert os.path.splitext(os.path.basename(path))[1] in ['.nc', '.json', '.tfrecord'], \
+        f'Datatype {type} is not supported. Load either .nc, .json or .tfrecord'
 
 
 def create_tempmaps(datapath, filename, scalingfactor):
@@ -148,18 +154,8 @@ def dataprep(datapath, scalingfactor, mode=None):
     # set imgdir and create if necessary, then generate images
     imgdir = os.path.join(os.getcwd(), f'Images/{filename}_{scalingfactor}xSR')
 
-    # PRETRAINING
-    if 'pretrain' == mode:
-        tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_pretrain.tfrecord')
-        if not os.path.isfile(tfrecordpath):
-            print(f'\nGenerating Pretraining dataset from {filename}{ext}\n')
-            imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
-            generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
-            print(f'utils: {tfrecordpath}')
-        return tfrecordpath
-
     # TRAINING
-    elif 'train' == mode:
+    if 'train' == mode:
         tfrecordpath_train = os.path.join(os.path.dirname(datapath), f'{filename}_train.tfrecord')
         tfrecordpath_test = os.path.join(os.path.dirname(datapath), f'{filename}_test.tfrecord')
         if not os.path.isfile(tfrecordpath_train) or not os.path.isfile(tfrecordpath_test) or not os.path.isdir(imgdir):
@@ -183,7 +179,7 @@ def dataprep(datapath, scalingfactor, mode=None):
         tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_inference.tfrecord')
         if not os.path.isfile(tfrecordpath):
             print(f'\nGenerating Inference dataset from {filename}{ext}\n')
-            # THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
+            #! THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
             imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
             np.save(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'), imgarray_HR)
             generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
@@ -192,14 +188,14 @@ def dataprep(datapath, scalingfactor, mode=None):
             imgarray_HR = np.load(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'))
             return tfrecordpath, imgarray_HR
 
-def train_test_split(imgarrayLR, imgarrayHR, test_size=0.2):
+def train_test_split(imgarrayHR, imgarrayLR, test_size=0.2):
     i = int((1 - test_size) * imgarrayLR.shape[0])
     o = np.random.permutation(imgarrayLR.shape[0])
 
     imgarrayLR_train, imgarrayLR_test = np.split(np.take(imgarrayLR, o, axis=0), [i])
     imgarrayHR_train, imgarrayHR_test = np.split(np.take(imgarrayHR, o, axis=0), [i])
 
-    return imgarrayLR_train, imgarrayLR_test, imgarrayHR_train, imgarrayHR_test
+    return imgarrayHR_train, imgarrayHR_test, imgarrayLR_train, imgarrayLR_test
 
 
 def start_timer():
