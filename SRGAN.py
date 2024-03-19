@@ -66,8 +66,8 @@ class SRGAN(PhIREGANs.PhIREGANs):
         print(f'    Initialising Pretraining')
         phiregans = PhIREGANs(datatype=self.datatype, r=[self.scaling_factor], N_epochs_pretrain=epochs_pretrain)
         gan_utils.start_timer()
-        self.pretrain_model_dir = self.pretrain(self.scaling_factor, save_path=savepath, datapath=self.pretrain_tfrecord, 
-                                       batch_size=batchsize, pretrainedmodel_path=pretrainedmodel)
+        self.pretrain_model_dir = phiregans.pretrain(self.scaling_factor, save_path=savepath, datapath=self.pretrain_tfrecord, 
+                                                     batch_size=batchsize, pretrainedmodel_path=pretrainedmodel)
 
 
     # TRAINING ---------------------------------------------------------------------------------------------------------
@@ -107,7 +107,6 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     
     def training_tfrecord(self, path, mode):
-        
         filename, _ = os.path.splitext(os.path.basename(path))
         tfrecordpath = os.path.join(os.path.dirname(path), f'{filename}_{mode}.tfrecord')
         hr, lr = gan_utils.generate_LRHR(path, self.scaling_factor)
@@ -128,9 +127,50 @@ class SRGAN(PhIREGANs.PhIREGANs):
         self.train_tfrecord = os.path.join(os.path.dirname(path), f'{filename}_train.tfrecord')
         self.test_tfrecord = os.path.join(os.path.dirname(path), f'{filename}_test.tfrecord')
         hr, lr = gan_utils.generate_LRHR(path, self.scaling_factor)
-        hr_train, hr_test, lr_train, lr_test = gan_utils.train_test_split(hr, lr)
+        hr_train, self.hr_test, lr_train, lr_test = gan_utils.train_test_split(hr, lr)
         utils.generate_TFRecords(self.train_tfrecord, data_HR=hr_train, data_LR=lr_train, mode='train')
         utils.generate_TFRecords(self.test_tfrecord, data_LR=lr_test, mode='test')
-        np.save(os.path.join(os.path.dirname(path), f'{filename}_test_HR.npy'), hr_test)
+        np.save(os.path.join(os.path.dirname(path), f'{filename}_test_HR.npy'), self.hr_test)
 
+
+    def run_training(self, epochs_train, savepath, batchsize, trainedmodel):
+        if trainedmodel:
+            model_dir = trainedmodel
+            if self.pretrain_model_dir:
+                Warning('Both a pretrained and trained model have been set. The trained model will be used for training')
+        elif not self.pretrain_model_dir and not trainedmodel:
+            model_dir = None
+
+        phiregans = PhIREGANs(data_type='temperature', N_epochs_train=epochs_train)
+
+        gan_utils.start_timer()
+        model_dir = phiregans.train(r=[self.scaling_factor],
+                                    data_path=self.train_tfrecord,
+                                    model_path=savepath,
+                                    trainedmodelpath=model_dir,
+                                    batch_size=batchsize)
+        self.times['traintime'] = gan_utils.nd_timer()
+
+        gan_utils.start_timer()
+        data_out, data_out_path = phiregans.test(r=[self.scaling_factor],
+                                                 data_path=self.test_tfrecord,
+                                                 model_path=model_dir,
+                                                 batch_size=batchsize)
+        self.times['testtime'] = gan_utils.end_timer()
+
+        mse = (1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2)
+        print(f'\n\nThe mean squared error of the model is {np.round(mse, 2)}\n\n')
+        self.write_model_info(data_out_path, batchsize, epochs_train, mse)
         
+
+    def write_model_info(self, path, batchsize, epochs, mse):
+        infofile = open(os.path.join(os.path.dirname(path), f'model_information.txt'), 'w')
+        infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
+                             f'Training data: {self.train_tfrecord}\n',
+                             f'Scaling factor: {self.scaling_factor}\n',
+                             f'Batch size: {batchsize}\n',
+                             f'Epochs: {epochs} training',
+                             f'Times: {self.times["pretraintime"]} pretraining, {self.times["traintime"]} training, '
+                             f'{self.times["testtime"]} testing'],
+                             f'Mean squared error: {np.round(mse, 2)}')
+        infofile.close()
