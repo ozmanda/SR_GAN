@@ -11,39 +11,58 @@ class SRGAN(PhIREGANs.PhIREGANs):
     inference on QRF-produced temperature maps. 
     '''
 
-    def __init__(self, data_type: str) -> None:
+    def __init__(self, data_type: str, sf: int) -> None:
         '''
         
         '''
         self.datatype = data_type
+        self.scaling_factor = sf
         self.times = {'pretraintime': None, 'traintime': None, 'testtime': None, 'inferencetime': None}
 
         
         self.pretrain_tfrecord: str = ''
+        self.pretrain_lr: float = 0
+        self.pretrain_batchsize: int = 0
+        self.pretrain_epochs: int = 0
         self.pretrained_model_dir: str = ''
+        self.pretrain_savepath: str = ''
         
         self.train_tfrecord: str = ''
-        self.test_tfrecord: str = ''
-        self.hr_test: np.ndarray = None
+        self.train_lr: float = 0
+        self.train_batchsize: int = 0
+        self.train_epochs: int = 0
         self.trained_model_dir: str = ''
+        self.train_savepath: str = ''
+
+        self.test_tfrecord: str = ''
+        self.test_batchsize: int = 0
+        self.hr_test: np.ndarray = None
         
         self.inference_tfrecord: str = ''
+        self.inference_batchsize: int = 0
+        self.inference_hr: np.ndarray = None
         
     # PRETRAINING ------------------------------------------------------------------------------------------------------
     def set_pretrained_model(self, pretrained_model_path):
         assert os.path.isdir(pretrained_model_path), f'Pretrained model path {pretrained_model_path} does not exist'
         self.pretrained_model_dir = pretrained_model_path
 
+    def configure_pretraining(self, datapath, epochs, batchsize, learningrate, pretrainedmodel, savepath):
+        self.pretrain_epochs = epochs
+        self.pretrain_batchsize = batchsize
+        self.pretrain_lr = learningrate
+        self.pretrain_savepath = savepath
+        self.set_pretrain_data(datapath)
+        self.set_pretrained_model(pretrainedmodel)
 
-    def set_pretrain_data(self, pretrain_path, sf):
+    def set_pretrain_data(self, pretrain_path):
         '''
         Sets the pretraining data based on the scaling factor and the data path. The correct functions 
         are called automatically based on the file extension.
         '''
         gan_utils.check_file(pretrain_path)
-        self.scaling_factor = sf
         if os.path.splitext(pretrain_path)[1] != '.tfrecord':
-            self.pretrain_tfrecord = self.generate_pretrain_dataset(pretrain_path, sf)
+            self.pretrain_tfrecord = self.generate_pretrain_dataset(pretrain_path, self.scaling_factor)
         else:
             self.pretrain_tfrecord = pretrain_path
 
@@ -62,18 +81,29 @@ class SRGAN(PhIREGANs.PhIREGANs):
         return tfrecordpath
     
 
-    def run_pretraining(self, epochs_pretrain, savepath, batchsize, pretrainedmodel):
+    def run_pretraining(self):
         print(f'    Initialising Pretraining')
-        phiregans = PhIREGANs(datatype=self.datatype, r=[self.scaling_factor], N_epochs_pretrain=epochs_pretrain)
+        phiregans = PhIREGANs(datatype=self.datatype, r=[self.scaling_factor], N_epochs_pretrain=self.pretrain_epochs)
         gan_utils.start_timer()
-        self.pretrain_model_dir = phiregans.pretrain(self.scaling_factor, save_path=savepath, datapath=self.pretrain_tfrecord, 
-                                                     batch_size=batchsize, pretrainedmodel_path=pretrainedmodel)
+        self.pretrain_model_dir = phiregans.pretrain(self.scaling_factor, save_path=self.pretrain_savepath, datapath=self.pretrain_tfrecord, 
+                                                     batch_size=self.pretrain_batchsize, pretrainedmodel_path=self.pretrained_model_dir)
+        self.times['pretraintime'] = gan_utils.end_timer()
 
 
     # TRAINING ---------------------------------------------------------------------------------------------------------
     def set_trained_model(self, trained_model_path):
         assert os.path.isdir(trained_model_path), f'Trained model path {trained_model_path} does not exist'
         self.trained_model_dir = trained_model_path
+
+    def configure_training(self, datapath, epochs, batchsize_train, batchsize_test, learningrate, trainedmodel, savepath):
+        if trainedmodel:
+            self.set_trained_model(trainedmodel)
+        self.set_train_data(datapath)
+        self.train_epochs = epochs
+        self.train_batchsize = batchsize_train
+        self.test_batchsize = batchsize_test
+        self.training_lr = learningrate
+        self.train_savepath = savepath        
     
     def set_train_data(self, train_path):
         if len(train_path) == 1:
@@ -133,41 +163,86 @@ class SRGAN(PhIREGANs.PhIREGANs):
         np.save(os.path.join(os.path.dirname(path), f'{filename}_test_HR.npy'), self.hr_test)
 
 
-    def run_training(self, epochs_train, savepath, batchsize, trainedmodel):
-        if trainedmodel:
-            model_dir = trainedmodel
+    def run_training(self):
+        if self.trained_model_dir:
+            model_dir = self.trained_model_dir
             if self.pretrain_model_dir:
                 Warning('Both a pretrained and trained model have been set. The trained model will be used for training')
-        elif not self.pretrain_model_dir and not trainedmodel:
+        elif self.pretrain_model_dir:
+            model_dir = self.pretrain_model_dir
+        else:
             model_dir = None
 
-        phiregans = PhIREGANs(data_type='temperature', N_epochs_train=epochs_train)
+        phiregans = PhIREGANs(data_type='temperature', N_epochs_train=self.train_epochs, learning_rate=self.training_lr)
 
         gan_utils.start_timer()
         model_dir = phiregans.train(r=[self.scaling_factor],
                                     data_path=self.train_tfrecord,
-                                    model_path=savepath,
+                                    model_path=self.train_savepath,
                                     trainedmodelpath=model_dir,
-                                    batch_size=batchsize)
+                                    batch_size=self.train_batchsize)
         self.times['traintime'] = gan_utils.nd_timer()
 
         gan_utils.start_timer()
         data_out, data_out_path = phiregans.test(r=[self.scaling_factor],
                                                  data_path=self.test_tfrecord,
                                                  model_path=model_dir,
-                                                 batch_size=batchsize)
+                                                 batch_size=self.test_batchsize)
         self.times['testtime'] = gan_utils.end_timer()
 
-        mse = (1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2)
-        print(f'\n\nThe mean squared error of the model is {np.round(mse, 2)}\n\n')
-        self.write_model_info(data_out_path, batchsize, epochs_train, mse)
+        mse = round((1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2), 4)
+        self.train_mse = mse
+        return data_out_path
+
         
 
-    def write_model_info(self, path, batchsize, epochs, mse):
+    # INFERENCE --------------------------------------------------------------------------------------------------------
+    def configure_inference(self, inference_path, batchsize):
+        self.set_inference_data(inference_path, batchsize)
+        self.inference_batchsize = batchsize
+
+
+    def set_inference_data(self, inference_path):
+        gan_utils.check_file(inference_path)
+        self.load_inference_data(inference_path)
+
+
+    def load_inference_data(self, inference_path):
+        filename, _ = os.path.splitext(os.path.basename(inference_path))
+        self.inference_tfrecord = os.path.join(os.path.dirname(inference_path), f'{filename}_inference.tfrecord')
+        if not os.path.isfile(self.inference_tfrecord):
+            self.inference_hr = self.generate_inference_dataset(inference_path, filename)
+        else:
+            self.inference_hr = np.load(os.path.join(os.path.dirname(inference_path), f'{filename}_inference_HR.npy'))
+
+
+    def generate_inference_dataset(self, inference_path, filename):
+        hr, lr = gan_utils.generate_LRHR(inference_path, self.scaling_factor)
+        utils.generate_TFRecords(self.inference_tfrecord, data_LR=lr, mode='inference')
+        np.save(os.path.join(os.path.dirname(inference_path), f'{filename}_inference_HR.npy'), hr)
+        return hr
+
+
+    def run_inference(self):
+        assert self.trained_model_dir, 'A trained model must be given'
+        phiregans = PhIREGANs(data_type=self.data_type)
+        gan_utils.start_timer()
+        data_out, data_out_path = phiregans.test(r=[self.scaling_factor],
+                                                 data_path=self.inference_tfrecord,
+                                                 model_path=self.trained_model_dir,
+                                                 batch_size=self.inference_batchsize)
+        self.times['inferencetime'] = gan_utils.end_timer()
+        mse = round((1 / len(self.inference_hr)) * np.sum((self.inference_hr - data_out) ** 2), 4)
+        self.inference_mse = mse
+        return data_out_path
+
+
+    # GENERAL FUNCTIONS ------------------------------------------------------------------------------------------------
+    def write_run_info(self, modes, path, batchsize, epochs, mse):
         infofile = open(os.path.join(os.path.dirname(path), f'model_information.txt'), 'w')
         infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
-                             f'Training data: {self.train_tfrecord}\n',
                              f'Scaling factor: {self.scaling_factor}\n',
+                             f'Training data: {self.train_tfrecord}\n',
                              f'Batch size: {batchsize}\n',
                              f'Epochs: {epochs} training',
                              f'Times: {self.times["pretraintime"]} pretraining, {self.times["traintime"]} training, '
