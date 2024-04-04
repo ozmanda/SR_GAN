@@ -2,13 +2,7 @@ import os
 from SRGAN import SRGAN
 from PhIREGANs import *
 from palm_tempmaps import *
-from netCDF4 import Dataset
 import argparse
-import gan_utils
-from gan_utils import *
-from utils import generate_TFRecords, calculate_mu_sig, downscale_image
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 
 """
 This script  is a wrapper which should be used to either train a GANs from a specific PALM output file or to test an
@@ -56,6 +50,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize_pretrain', type=int, help='Batch size for pretraining', default=100)
     parser.add_argument('--epochs_train', type=int, help='Number of epochs of training', default=10)
     parser.add_argument('--batchsize_train', type=int, help='Batch size for training', default=100)
+    parser.add_argument('--traintestsplit', type=bool, help='Whether a train-test split must be done', default=False)
     parser.add_argument('--batchsize_test', type=int, help='Batch size for testing', default=100)
     parser.add_argument('--batchsize_inference', type=int, help='Batch size for inference', default=100)
 
@@ -68,7 +63,7 @@ if __name__ == '__main__':
                         default=0.001)
     args = parser.parse_args()
 
-    assert set(args.mode).isdisjoint(VALID_MODES), 'At least one valid mode must be given.'
+    assert not set(args.mode).isdisjoint(VALID_MODES), 'At least one valid mode must be given.'
     if 'inference' in args.mode and 'pretrain' in args.mode and 'train' not in args.mode:
         print('Inference is not possible on a pre- but untrained model.')
         raise ValueError
@@ -84,8 +79,8 @@ if __name__ == '__main__':
         srgan.run_pretraining(args.epochs_pretrain, args.pretrainedmodelspath, args.batchsize, args.pretrainedmodel)
 
     if 'train' in args.mode:
-        #! consider loading a previously pretrained model
-        #! consider training a previously trained model --> same process?
+        # TODO: consider loading a previously pretrained model
+        # TODO: consider training a previously trained model --> same process?
         srgan.configure_training(datapath=args.traindata, epochs=args.epochs_train, batchsize_train=args.batchsize_train, batchsize_test=args.batchsize_test,
                                 learningrate=args.learning_rate, trainedmodel=args.trainedmodel, savepath=args.trainedmodelspath)
         if args.trainedmodel:
