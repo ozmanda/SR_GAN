@@ -6,15 +6,13 @@ import utils
 
 
 class SRGAN(PhIREGANs.PhIREGANs):
+    # TODO: image generation isn't transferred to this class yet
     '''
     Inherits from the PhIREGANs class developed by Stengel et al. (2021) and extends it for training and 
     inference on QRF-produced temperature maps. 
     '''
 
     def __init__(self, data_type: str, sf: int) -> None:
-        '''
-        
-        '''
         self.datatype = data_type
         self.scaling_factor = sf
         self.times = {'pretraintime': None, 'traintime': None, 'testtime': None, 'inferencetime': None}
@@ -68,13 +66,9 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
 
     def generate_pretrain_dataset(self, pretrain_path):
-        #! image generation isn't transferred to this class yet
-        imgdir = os.path.join(os.getcwd(), f'Images/{filename}_{self.scaling_factor}xSR')
-
-        filename, ext = os.path.splitext(os.path.basename(pretrain_path))
-        tfrecordpath = os.path.join(os.path.dirname(pretrain_path), f'{filename}_pretrain.tfrecord')
+        tfrecordpath = gan_utils.tfrecord_filename(pretrain_path, 'pretrain')
         if not os.path.isfile(tfrecordpath):
-            print(f'\nGenerating Pretraining dataset from {pretrain_path}{ext}\n')
+            print(f'\nGenerating Pretraining dataset from {pretrain_path}\n')
             imgarray_HR, imgarray_LR = gan_utils.generate_LRHR(pretrain_path, self.scaling_factor)
             utils.generate_TFRecords(tfrecordpath, data_HR=imgarray_HR, data_LR=imgarray_LR, mode='train')
             print(f'utils: {tfrecordpath}')
@@ -98,6 +92,9 @@ class SRGAN(PhIREGANs.PhIREGANs):
     def configure_training(self, datapath, epochs, batchsize_train, batchsize_test, learningrate, trainedmodel, savepath):
         if trainedmodel:
             self.set_trained_model(trainedmodel)
+        elif self.pretrain_model_dir:
+            self.set_trained_model(self.pretrain_model_dir)
+
         self.set_train_data(datapath)
         self.train_epochs = epochs
         self.train_batchsize = batchsize_train
@@ -105,7 +102,16 @@ class SRGAN(PhIREGANs.PhIREGANs):
         self.training_lr = learningrate
         self.train_savepath = savepath        
     
-    def set_train_data(self, train_path):
+    def set_train_data(self, train_path, split):
+        '''
+        Checks multiple training data options: 
+        1. If one file is given, it must be .nc or .json data --> split into training and test sets, then converted to .tfrecord
+        2. If two files are given:
+                2.1. If both are .tfrecords, they are directly loaded
+                2.2. If both are .nc or .json:
+                        2.2.1. If split is True, the first file is the HR data and the second is the LR file, requiring train_test_split
+                        2.2.2. If split is False, the first file is the training data and the second is the testing data, requiring direct conversion to .tfrecord
+        '''
         if len(train_path) == 1:
             # must be .json or .nc --> requries train_test_split
             gan_utils.check_file(train_path)
@@ -124,12 +130,23 @@ class SRGAN(PhIREGANs.PhIREGANs):
             else:
                 for path in train_path:
                     gan_utils.check_file(path)
-                self.train_test_dataset(train_path, split=False)
+                if split:
+                    gan_utils.load_training_data(train_path, self.scaling_factor)
+                else:
+                    self.train_test_dataset(train_path)
 
         else:
             raise ValueError('Invalid number of paths given for training data')
 
 
+    def train_hrlr_dataset(self, path):
+        ''' For the case where HR and LR images come from separate files and require splitting '''
+        imgarrayHR_train, imgarrayHR_test, imgarrayLR_train, imgarrayLR_test = gan_utils.load_training_data(path, self.scaling_factor)
+        self.train_tfrecord = gan_utils.tfrecord_filename(path[0], 'train')
+        gan_utils.generate_TFRecords(self.train_tfrecord, data_HR=imgarrayHR_train, data_LR=imgarrayLR_train, mode='train')
+        gan_utils.generate_TFRecords(self.test_tfrecord, data_HR=imgarrayHR_test, data_LR=imgarrayLR_test, mode='test')
+
+    
     def train_test_dataset(self, path):
         ''' For the case where two .nc or .json files are given, the data is directly loaded into tfrecords '''
         self.train_tfrecord = self.training_tfrecord(path[0], 'train')
@@ -137,15 +154,17 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     
     def training_tfrecord(self, path, mode):
-        filename, _ = os.path.splitext(os.path.basename(path))
-        tfrecordpath = os.path.join(os.path.dirname(path), f'{filename}_{mode}.tfrecord')
+        '''
+        Performs the TFRecord generation for either training or testing data
+        '''
+        tfrecordpath = gan_utils.tfrecord_filename(path, mode)
         hr, lr = gan_utils.generate_LRHR(path, self.scaling_factor)
         if mode == 'train':
             utils.generate_TFRecords(tfrecordpath, data_HR=hr, data_LR=lr, mode=mode)
             return tfrecordpath
         elif mode == 'test':
             utils.generate_TFRecords(tfrecordpath, data_LR=lr, mode=mode)
-            np.save(os.path.join(os.path.dirname(path), f'{filename}_test_HR.npy'), hr)
+            np.save(os.path.join(os.path.dirname(path), f'{os.path.splitext(os.path.basename(path))[0]}_test_HR.npy'), hr)
             return tfrecordpath, hr
         
     
@@ -154,8 +173,8 @@ class SRGAN(PhIREGANs.PhIREGANs):
         For the training case where one .nc or .json file is given, the data is split into training and testing sets
         '''
         filename, _ = os.path.splitext(os.path.basename(path))
-        self.train_tfrecord = os.path.join(os.path.dirname(path), f'{filename}_train.tfrecord')
-        self.test_tfrecord = os.path.join(os.path.dirname(path), f'{filename}_test.tfrecord')
+        self.train_tfrecord = gan_utils.tfrecord_filename(path, 'train')
+        self.test_tfrecord = gan_utils.tfrecord_filename(path, 'test')
         hr, lr = gan_utils.generate_LRHR(path, self.scaling_factor)
         hr_train, self.hr_test, lr_train, lr_test = gan_utils.train_test_split(hr, lr)
         utils.generate_TFRecords(self.train_tfrecord, data_HR=hr_train, data_LR=lr_train, mode='train')
@@ -209,7 +228,7 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     def load_inference_data(self, inference_path):
         filename, _ = os.path.splitext(os.path.basename(inference_path))
-        self.inference_tfrecord = os.path.join(os.path.dirname(inference_path), f'{filename}_inference.tfrecord')
+        self.inference_tfrecord = gan_utils.tfrecord_filename(inference_path, 'inference')
         if not os.path.isfile(self.inference_tfrecord):
             self.inference_hr = self.generate_inference_dataset(inference_path, filename)
         else:
