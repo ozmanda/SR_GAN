@@ -144,6 +144,26 @@ def generate_LRHR(datapath, scalingfactor):
     return imgarray_HR, imgarray_LR
 
 
+def check_hrlr(imgarrayHR, imgarrayLR, scalingfactor):
+    """
+    Check that the LR image is scaled down correctly from the HR image and have the same number of samples.
+    """
+    assert imgarrayHR.shape[1] == imgarrayLR.shape[1] * scalingfactor, 'LR image is not scaled down correctly'
+    assert imgarrayHR.shape[2] == imgarrayLR.shape[2] * scalingfactor, 'LR image is not scaled down correctly'
+    assert imgarrayHR.shape[0] == imgarrayLR.shape[0], 'HR and LR image arrays have different lengths'
+
+
+def load_training_data(datapathHR, datapathLR, scalingfactor):
+    """
+    Load training data from .npy files and adjust dimensions to be divisible by the scaling factor
+    """
+    imgarray_HR = np.load(datapathHR)
+    imgarray_LR = np.load(datapathLR)
+    check_hrlr(imgarray_HR, imgarray_LR, scalingfactor)
+    imgarrayHR_train, imgarrayHR_test, imgarrayLR_train, imgarrayLR_test = train_test_split(imgarray_HR, imgarray_LR)
+    return imgarrayHR_train, imgarrayHR_test, imgarrayLR_train, imgarrayLR_test
+
+
 def dataprep(datapath, scalingfactor, mode=None):
     """
     Recieves datapath for either a .nc or .json file, for which it generates the HR/LR images and the .tfrecord suitable
@@ -179,7 +199,7 @@ def dataprep(datapath, scalingfactor, mode=None):
         tfrecordpath = os.path.join(os.path.dirname(datapath), f'{filename}_inference.tfrecord')
         if not os.path.isfile(tfrecordpath):
             print(f'\nGenerating Inference dataset from {filename}{ext}\n')
-            #! THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
+            # TODO: THERE SHOULD BE NO HR GENERATION HERE, ONLY LR --> REWORK THIS CODE
             imgarray_HR, imgarray_LR = generate_LRHR(datapath, scalingfactor)
             np.save(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'), imgarray_HR)
             generate_TFRecords(tfrecordpath, data_LR=imgarray_LR, mode='test')
@@ -187,6 +207,7 @@ def dataprep(datapath, scalingfactor, mode=None):
         else:
             imgarray_HR = np.load(os.path.join(os.path.dirname(datapath), f'{filename}_inference_HR.npy'))
             return tfrecordpath, imgarray_HR
+
 
 def train_test_split(imgarrayHR, imgarrayLR, test_size=0.2):
     i = int((1 - test_size) * imgarrayLR.shape[0])
@@ -196,6 +217,11 @@ def train_test_split(imgarrayHR, imgarrayLR, test_size=0.2):
     imgarrayHR_train, imgarrayHR_test = np.split(np.take(imgarrayHR, o, axis=0), [i])
 
     return imgarrayHR_train, imgarrayHR_test, imgarrayLR_train, imgarrayLR_test
+
+
+def tfrecord_filename(datapath, mode):
+    filename = os.path.splitext(os.path.basename(datapath))[0]
+    return os.path.join(os.path.dirname(datapath), f'{filename}_{mode}.tfrecord')
 
 
 def start_timer():
