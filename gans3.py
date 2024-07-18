@@ -1,7 +1,7 @@
 import os
 from SRGAN import SRGAN
 from PhIREGANs import *
-from palm_tempmaps import *
+from archive.palm_tempmaps import *
 import argparse
 
 """
@@ -79,11 +79,11 @@ if __name__ == '__main__':
         srgan.run_pretraining(args.epochs_pretrain, args.pretrainedmodelspath, args.batchsize, args.pretrainedmodel)
 
     if 'train' in args.mode:
-        # TODO: consider loading a previously pretrained model
-        # TODO: consider training a previously trained model --> same process?
         srgan.configure_training(datapath=args.traindata, epochs=args.epochs_train, batchsize_train=args.batchsize_train, batchsize_test=args.batchsize_test,
                                 learningrate=args.learning_rate, trainedmodel=args.trainedmodel, savepath=args.trainedmodelspath)
-        if args.trainedmodel:
+        if args.pretrainedmodel:
+            srgan.set_pretrained_model(args.pretrainedmodel)
+        elif args.trainedmodel:
             srgan.set_trained_model(args.trainedmodel)
         srgan.run_training(args.epochs_train, args.trainedmodelspath, args.batchsize, args.trainedmodel)
 
