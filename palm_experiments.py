@@ -111,7 +111,7 @@ class SparsePALM():
 
     def test(self, testfilename: str, trainedmodelpath: str, trainedmodel: PhIREGANs) -> None:
         for palmnumber in TESTFILES:
-            data_out, data_out_path = trainedmodel.test(r=[self.scaling_factor],
+            data_out, data_out_path = trainedmodel.test(r=[self.SF],
                                                     data_path=os.path.join(self.palmsubpaths[palmnumber], testfilename),
                                                     model_path=trainedmodelpath)
             ground_truth = np.load(os.path.join(self.palmsubpaths[palmnumber], 'HR.npy'))
