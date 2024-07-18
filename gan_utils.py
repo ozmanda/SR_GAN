@@ -8,6 +8,7 @@ from utils import downscale_image, generate_TFRecords
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import time
+import pandas as pd
 
 
 def check_file(path, mode=None): 
@@ -39,6 +40,44 @@ def create_tempmaps(datapath, filename, scalingfactor):
     # np.save(os.path.join(os.getcwd(), f'Data/{filename}.npy'), tempmaps)
 
     return tempmaps
+
+
+def extract_surfacetemps(palmfile: str):
+    try:
+        temps = palmfile['theta_xy']
+    except IndexError:
+        temps = palmfile['theta']
+
+    surf_temps = np.zeros(shape=(temps.shape[0], temps.shape[2], temps.shape[3]))
+
+    for time in range(temps.shape[0]):
+        for idxs, _ in np.ndenumerate(temps[time, 0, :, :]):
+            for layer in range(temps.shape[1]):
+                if temps[time, layer, idxs[0], idxs[1]] != -9999:
+                    surf_temps[time, :, :][idxs] = temps[time, layer, idxs[0], idxs[1]] - 273.15
+                    break
+                else:
+                    continue
+    # flip maps to account for PALM having origin at the bottom left, not top left
+    surf_temps = np.flip(surf_temps, axis=1)
+
+    return surf_temps
+
+
+def palm_times(palmfile: Dataset):
+    """
+    Extracts the time vector, formatting it as a datetime. The time contained within the PALM file is given as
+    minutes since origin. Additionally, a boolean vector is generated, indicating the start of the useable time
+    series (certain observations are required to create the moving average).
+    """
+    origintime = pd.to_datetime(palmfile.origin_time)
+    times_list = palmfile['time']
+    times = []
+    for _, time in enumerate(times_list):
+        times.append(origintime + pd.Timedelta(minutes=np.round(time * 24 * 60)))
+    if not times:
+        raise ValueError
+    return times
 
 
 def create_images(imgdir, HR_array, LR_array):
@@ -118,7 +157,20 @@ def adjust_dimensions(array, sf):
     Adjusts an array to be scalable to the given scaling factor, meaning that all dimenions are divisible by the
     scaling factor.
     """
-    return array[:, 0:array.shape[1] - array.shape[1] % sf,  0:array.shape[2] - array.shape[2] % sf]
+    return array[:, 0:array.shape[1] - array.shape[1] % sf,  0:array.shape[2] - array.shape[2] % sf, :]
+
+
+def generate_LRHR_from_array(arrayHR, scalingfactor):
+    if len(arrayHR.shape) == 3:
+        arrayHR = arrayHR.reshape(arrayHR.shape[0], arrayHR.shape[1], arrayHR.shape[2], 1)
+    elif len(arrayHR.shape) != 4:
+        warn(f'Array has shape {arrayHR.shape}, which is not supported')
+        raise ValueError
+    imagearray_HR = adjust_dimensions(arrayHR, scalingfactor)
+    imagearray_LR = lower_resolution(imagearray_HR, scalingfactor)
+    # imagearray_LR = utils.downscale_image(imagearray_HR, scalingfactor)
+    return imagearray_HR, imagearray_LR
+
 
 def generate_LRHR(datapath, scalingfactor):
     """
@@ -139,7 +191,8 @@ def generate_LRHR(datapath, scalingfactor):
 
     # adjust array dimensions to be divisible by the scaling factor and then generate LR image array
     imgarray_HR = adjust_dimensions(imgarray_HR, scalingfactor)
-    imgarray_LR = utils.downscale_image(imgarray_HR, scalingfactor)
+    imgarray_LR = lower_resolution(imgarray_HR, scalingfactor)
+    # imgarray_LR = utils.downscale_image(imgarray_HR, scalingfactor)
 
     return imgarray_HR, imgarray_LR
 
@@ -151,6 +204,20 @@ def check_hrlr(imgarrayHR, imgarrayLR, scalingfactor):
     assert imgarrayHR.shape[1] == imgarrayLR.shape[1] * scalingfactor, 'LR image is not scaled down correctly'
     assert imgarrayHR.shape[2] == imgarrayLR.shape[2] * scalingfactor, 'LR image is not scaled down correctly'
     assert imgarrayHR.shape[0] == imgarrayLR.shape[0], 'HR and LR image arrays have different lengths'
+
+
+def lower_resolution(hr_map, sr_factor):
+    """
+    Lowers the resolution of sparse arrays using a simple nanmean to avoid full nan arrays when using the 
+    standard conv2D downscaling method. 
+    """
+    lr_map = np.zeros((hr_map.shape[0], hr_map.shape[1] // sr_factor, hr_map.shape[2] // sr_factor, hr_map.shape[3]))
+    for i in range(lr_map.shape[1]):
+        for j in range(lr_map.shape[2]):
+            for t in range(lr_map.shape[0]):
+                lr_map[t, i, j, :] = np.nanmean(hr_map[t, i*sr_factor : (i+1)*sr_factor, 
+                                                       j*sr_factor : (j+1)*sr_factor, :])
+    return lr_map
 
 
 def load_training_data(datapathHR, datapathLR, scalingfactor):
