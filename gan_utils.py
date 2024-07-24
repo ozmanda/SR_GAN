@@ -18,7 +18,7 @@ def check_file(path, mode=None):
         f'Datatype {type} is not supported. Load either .nc, .json or .tfrecord'
 
 
-def create_tempmaps(datapath, filename, scalingfactor):
+def create_tempmaps(datapath):
     """
     Loads temperature maps from .nc file and flattens the layer dimension to return a [layers x time, lat, lon] array
     """
@@ -40,6 +40,22 @@ def create_tempmaps(datapath, filename, scalingfactor):
     # np.save(os.path.join(os.getcwd(), f'Data/{filename}.npy'), tempmaps)
 
     return tempmaps
+
+
+def extract_temps(palmfile: Dataset):
+    try:
+        temps = palmfile['theta_xy']
+    except IndexError:
+        temps = palmfile['theta']
+
+    temps = np.reshape(temps, newshape=(temps.shape[0]*temps.shape[1],
+                                        temps.shape[2], temps.shape[3]))
+    # temps[np.where(temps == -9999)] = np.NaN
+    temps[np.where(temps != -9999)] -= 273.15
+    temps[np.where(temps == -9999)] = 0
+    # flip maps to account for PALM having origin at the bottom left, not top left
+    temps = np.flip(temps, axis=1)
+    return temps
 
 
 def extract_surfacetemps(palmfile: str):
@@ -180,7 +196,7 @@ def generate_LRHR(datapath, scalingfactor):
 
     # Load HR image array either from .nc or .json
     if type == '.nc':
-        imgarray_HR = create_tempmaps(datapath, filename, scalingfactor)
+        imgarray_HR = create_tempmaps(datapath)
     elif type == '.json':
         with open(datapath, 'rb') as file:
             imgarray_HR = cPickle.load(file)
@@ -189,6 +205,12 @@ def generate_LRHR(datapath, scalingfactor):
         warn(f'Data type {type} is not supported')
         raise TypeError
 
+    if len(imgarray_HR.shape) == 3:
+        imgarray_HR = imgarray_HR.reshape(imgarray_HR.shape[0], imgarray_HR.shape[1], imgarray_HR.shape[2], 1)
+    elif len(imgarray_HR.shape) != 4:
+        warn(f'Array has shape {imgarray_HR.shape}, which is not supported')
+        raise ValueError
+    
     # adjust array dimensions to be divisible by the scaling factor and then generate LR image array
     imgarray_HR = adjust_dimensions(imgarray_HR, scalingfactor)
     imgarray_LR = lower_resolution(imgarray_HR, scalingfactor)

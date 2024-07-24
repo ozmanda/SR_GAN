@@ -1,7 +1,6 @@
 import os
 from SRGAN import SRGAN
 from PhIREGANs import *
-from archive.palm_tempmaps import *
 import argparse
 
 """
@@ -72,11 +71,11 @@ if __name__ == '__main__':
 
     if 'pretrain' in args.mode:
         srgan.configure_pretraining(datapath=args.pretraindata, epochs=args.epochs_pretrain, batchsize=args.batchsize_pretrain, learningrate=args.learning_rate, 
-                                    pretrainedmodel=args.pretrainedmodel, pretrainedmodelspath=args.pretrainedmodelspath, alphaadvers=args.alphaadvers)
+                                    pretrainedmodel=args.pretrainedmodel, savepath=args.pretrainedmodelspath)
         if args.pretrainedmodel:
             srgan.set_pretrained_model(args.pretrainedmodel)
-        srgan.set_pretrain_data(args.pretraindata, args.scalingfactor)
-        srgan.run_pretraining(args.epochs_pretrain, args.pretrainedmodelspath, args.batchsize, args.pretrainedmodel)
+        srgan.set_pretrain_data(args.pretraindata)
+        srgan.run_pretraining()
 
     if 'train' in args.mode:
         srgan.configure_training(datapath=args.traindata, epochs=args.epochs_train, batchsize_train=args.batchsize_train, batchsize_test=args.batchsize_test,
@@ -85,12 +84,12 @@ if __name__ == '__main__':
             srgan.set_pretrained_model(args.pretrainedmodel)
         elif args.trainedmodel:
             srgan.set_trained_model(args.trainedmodel)
-        srgan.run_training(args.epochs_train, args.trainedmodelspath, args.batchsize, args.trainedmodel)
+        srgan.run_training()
 
     if 'inference' in args.mode:
         if args.trainedmodel:
             srgan.set_trained_model(args.trainedmodel)
-        srgan.configure_inference(datapath=args.inferencedata, batchsize=args.batchsize_inference)
+        srgan.configure_inference(inference_path=args.inferencedata, batchsize=args.batchsize_inference)
         srgan.run_inference()
 
     srgan.write_run_info()

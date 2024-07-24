@@ -51,7 +51,8 @@ class SRGAN(PhIREGANs.PhIREGANs):
         self.pretrain_lr = learningrate
         self.pretrain_savepath = savepath
         self.set_pretrain_data(datapath)
-        self.set_pretrained_model(pretrainedmodel)
+        if pretrainedmodel:
+            self.set_pretrained_model(pretrainedmodel)
 
     def set_pretrain_data(self, pretrain_path):
         '''
@@ -60,7 +61,7 @@ class SRGAN(PhIREGANs.PhIREGANs):
         '''
         gan_utils.check_file(pretrain_path)
         if os.path.splitext(pretrain_path)[1] != '.tfrecord':
-            self.pretrain_tfrecord = self.generate_pretrain_dataset(pretrain_path, self.scaling_factor)
+            self.pretrain_tfrecord = self.generate_pretrain_dataset(pretrain_path)
         else:
             self.pretrain_tfrecord = pretrain_path
 
@@ -77,9 +78,9 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     def run_pretraining(self):
         print(f'    Initialising Pretraining')
-        phiregans = PhIREGANs(datatype=self.datatype, r=[self.scaling_factor], N_epochs_pretrain=self.pretrain_epochs)
+        phiregans = PhIREGANs.PhIREGANs(data_type=self.datatype, N_epochs_pretrain=self.pretrain_epochs)
         gan_utils.start_timer()
-        self.pretrain_model_dir = phiregans.pretrain(self.scaling_factor, save_path=self.pretrain_savepath, datapath=self.pretrain_tfrecord, 
+        self.pretrain_model_dir = phiregans.pretrain(self.scaling_factor, save_path=self.pretrain_savepath, data_path=self.pretrain_tfrecord, 
                                                      batch_size=self.pretrain_batchsize, pretrainedmodel_path=self.pretrained_model_dir)
         self.times['pretraintime'] = gan_utils.end_timer()
 
@@ -192,7 +193,7 @@ class SRGAN(PhIREGANs.PhIREGANs):
         else:
             model_dir = None
 
-        phiregans = PhIREGANs(data_type='temperature', N_epochs_train=self.train_epochs, learning_rate=self.training_lr)
+        phiregans = PhIREGANs.PhIREGANs(data_type='temperature', N_epochs_train=self.train_epochs, learning_rate=self.training_lr)
 
         gan_utils.start_timer()
         model_dir = phiregans.train(r=[self.scaling_factor],
@@ -217,13 +218,16 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     # INFERENCE --------------------------------------------------------------------------------------------------------
     def configure_inference(self, inference_path, batchsize):
-        self.set_inference_data(inference_path, batchsize)
+        self.set_inference_data(inference_path)
         self.inference_batchsize = batchsize
 
 
     def set_inference_data(self, inference_path):
-        gan_utils.check_file(inference_path)
-        self.load_inference_data(inference_path)
+        gan_utils.check_file(inference_path, mode='inference')
+        if inference_path.endswith('.tfrecord'):
+            self.inference_tfrecord = inference_path
+        else:
+            self.load_inference_data(inference_path)
 
 
     def load_inference_data(self, inference_path):
@@ -244,7 +248,8 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     def run_inference(self):
         assert self.trained_model_dir, 'A trained model must be given'
-        phiregans = PhIREGANs(data_type=self.data_type)
+        phiregans = PhIREGANs.PhIREGANs(data_type=self.datatype)
+        phiregans.set_mu_sig(self.inference_tfrecord, 100)
         gan_utils.start_timer()
         data_out, data_out_path = phiregans.test(r=[self.scaling_factor],
                                                  data_path=self.inference_tfrecord,

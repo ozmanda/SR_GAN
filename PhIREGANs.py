@@ -504,7 +504,7 @@ class PhIREGANs:
             outputs:
                 sets self.mu_sig
         '''
-        print('Loading data ...', end=' ')
+        print(f'Loading data from {data_path}...', end=' ')
         tf.compat.v1.disable_eager_execution()
         dataset = tf.compat.v1.data.TFRecordDataset(data_path)
         dataset = dataset.map(self._parse_train_).batch(batch_size)
