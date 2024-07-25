@@ -30,12 +30,14 @@ class SparsePALM():
         self.palmpath: str = palmpath
         self.measurementpath: str = measurementpath
         self.standardHRpath: dict = {}
-        self.modelpath = modelpath
         self.runname = ''
         self.pretrain_tfrecord = ''
         self.training_tfrecord = ''
         self.test_tfrecord = ''
         self.mu_sig = [np.array([mu_sig[0]]), np.array([mu_sig[1]])] if mu_sig else None
+        self.modelpath = modelpath
+        if not os.path.isdir(self.modelpath):
+            os.makedirs(self.modelpath)
         self.palmfilepaths = {}
         self.palmsubpaths = {}
         self._palmfilepaths()
@@ -160,6 +162,7 @@ class SparsePALM():
 
         # Pretraining, Training and Testing
         phiregans, model_dir = self.aggregated_training_run(modelpath=self.modelpath)
+        self.aggregated_test(trainedmodel=phiregans, trainedmodelpath=model_dir)
 
 
     def aggregated_training_run(self, modelpath):
@@ -186,7 +189,7 @@ class SparsePALM():
         mse = round((1 / len(ground_truth)) * np.nansum(errors ** 2), 4)
         rmse = round(np.sqrt(mse), 4)
         print(f'           RMSE: {rmse} | MSE: {mse} | Average Error: {average_error} | Max Error: {max_error} | Min Error: {min_error}')
-        infofile = open(os.path.join(self.runname, f'info_SR{self.SF}.txt'), 'w')
+        infofile = open(os.path.join(self.modelpath, f'info_SR{self.SF}.txt'), 'w')
         infofile.writelines([f'RMSE: {rmse}\n', f'MSE: {mse}\n', f'Average Error: {average_error}\n', f'Max Error: {max_error}\n', f'Min Error: {min_error}\n'])
 
 
@@ -389,6 +392,6 @@ if __name__ == '__main__':
         sparse_estimator.dataset_generation(stationinfo=args.stationinfo)
     if args.aggregate_dataset:
         sparse_estimator.aggregate_run(runname=args.runname)
-        trained_model, trainedmodelpath = sparse_estimator.aggregated_training_run(modelpath=args.modelpath)
+        trained_model, trainedmodelpath = sparse_estimator.aggregated_run(modelpath=args.modelpath)
     else:
         sparse_estimator.run_estimation(baseline=args.baseline, sparse=args.sparse, insitu=args.insitu)
