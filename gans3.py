@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretraindata', type=str, help='relative path to the pretraining dataset', default=None)
     parser.add_argument('--traindata', type=str, help='relative path to the training dataset', default=None, nargs='*')
     parser.add_argument('--inferencedata', type=str, help='relative path to the test dataset', default=None)
+    parser.add_argument('--testsplit', type=float, help='Percentage of data to use for testing', default=0.2)
 
     # Model paths
     parser.add_argument('--pretrainedmodelspath', type=str, default='models/pretrained/',
@@ -79,7 +80,7 @@ if __name__ == '__main__':
 
     if 'train' in args.mode:
         srgan.configure_training(datapath=args.traindata, epochs=args.epochs_train, batchsize_train=args.batchsize_train, batchsize_test=args.batchsize_test,
-                                learningrate=args.learning_rate, trainedmodel=args.trainedmodel, savepath=args.trainedmodelspath)
+                                learningrate=args.learning_rate, trainedmodel=args.trainedmodel, savepath=args.trainedmodelspath, split=args.testsplit)
         if args.pretrainedmodel:
             srgan.set_pretrained_model(args.pretrainedmodel)
         elif args.trainedmodel:
