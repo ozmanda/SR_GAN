@@ -27,7 +27,8 @@ def create_tempmaps(datapath):
         # load maps, extract tempmaps, creat np.array and replace fill values -9999 with 0
         maps = Dataset(datapath, 'r', format="NETCDF4")
         tempmaps = np.array(maps["theta_xy"][:, :, :, :])
-        tempmaps[tempmaps == -9999] = np.NaN
+        #! NaN values are not supported in tfrecords, so we leave the fill value
+        # tempmaps[tempmaps == -9999] = np.NaN
         tempmaps -= 273.15
     except Exception as e:
         warn(f'The NetCDF file at path {datapath} could not be loaded, or the temperature '
@@ -50,9 +51,9 @@ def extract_temps(palmfile: Dataset):
 
     temps = np.reshape(temps, newshape=(temps.shape[0]*temps.shape[1],
                                         temps.shape[2], temps.shape[3]))
+    #! NaN values are not supported in tfrecords, so we leave the fill value
     # temps[np.where(temps == -9999)] = np.NaN
     temps[np.where(temps != -9999)] -= 273.15
-    temps[np.where(temps == -9999)] = 0
     # flip maps to account for PALM having origin at the bottom left, not top left
     temps = np.flip(temps, axis=1)
     return temps
