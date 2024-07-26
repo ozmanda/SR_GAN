@@ -307,8 +307,8 @@ class PhIREGANs:
                         os.makedirs(g_model_dir)
                     if not os.path.exists(gd_model_dir):
                         os.makedirs(gd_model_dir)
-                    g_saved_model = '/'.join([g_model_dir, 'gan'])
-                    gd_saved_model = '/'.join([gd_model_dir, 'gan'])
+                    g_saved_model = '/'.join([g_model_dir, 'gen'])
+                    gd_saved_model = '/'.join([gd_model_dir, 'gd'])
                     g_saver.save(sess, g_saved_model)
                     gd_saver.save(sess, gd_saved_model)
 
@@ -347,7 +347,8 @@ class PhIREGANs:
 
         tf.compat.v1.reset_default_graph()
 
-        assert self.mu_sig is not None, 'Value for mu_sig must be set first.'
+        #! Allowing this to be None has an impact on the _parse_test function
+        # assert self.mu_sig is not None, 'Value for mu_sig must be set first.'
 
         self.set_LR_data_shape(data_path)
         h, w, C = self.LR_data_shape
