@@ -177,8 +177,8 @@ class SparsePALM():
 
     def aggregated_test(self, trainedmodel: PhIREGANs, trainedmodelpath):
         data_out, data_out_path = trainedmodel.test(r=[self.SF], data_path=self.test_tfrecord, model_path=trainedmodelpath)
-        ground_truth = np.load(os.path.join(self.runpath, 'test.npy'))
-        self.evalute_test(data_out, ground_truth)
+        ground_truth = np.load(os.path.join(self.runpath, 'test_HR.npy'))
+        self.evalute_aggregate_test(data_out, ground_truth)
 
 
     def evalute_aggregate_test(self, data_out: np.ndarray, ground_truth: np.ndarray) -> None:
@@ -392,6 +392,5 @@ if __name__ == '__main__':
         sparse_estimator.dataset_generation(stationinfo=args.stationinfo)
     if args.aggregate_dataset:
         sparse_estimator.aggregate_run(runname=args.runname)
-        trained_model, trainedmodelpath = sparse_estimator.aggregated_run(modelpath=args.modelpath)
     else:
         sparse_estimator.run_estimation(baseline=args.baseline, sparse=args.sparse, insitu=args.insitu)
