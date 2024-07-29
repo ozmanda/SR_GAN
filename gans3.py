@@ -91,8 +91,6 @@ if __name__ == '__main__':
         if args.trainedmodel:
             srgan.set_trained_model(args.trainedmodel)
         srgan.configure_inference(inference_path=args.inferencedata, batchsize=args.batchsize_inference)
-        srgan.run_inference()
-
-    srgan.write_run_info()
+        data_out_path = srgan.run_inference()
 
 
