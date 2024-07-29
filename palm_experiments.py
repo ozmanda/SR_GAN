@@ -134,11 +134,11 @@ class SparsePALM():
 
     def evalute_test(self, data_out: np.ndarray, ground_truth: np.ndarray, palmnumber: str) -> None:
         errors = ground_truth - data_out
-        max_error = np.nanmax(errors)
-        min_error = np.nanmin(errors)
-        average_error = round(np.nanmean(errors), 4)
-        mse = round((1 / len(ground_truth)) * np.nansum(errors ** 2), 4)
-        rmse = round(np.sqrt(mse), 4)
+        max_error = np.round(np.nanmax(errors), 2)
+        min_error = np.round(np.nanmin(errors), 2)
+        average_error = round(np.nanmean(errors), 2)
+        mse = round((1 / len(ground_truth)) * np.nansum(errors ** 2), 2)
+        rmse = round(np.sqrt(mse), 2)
         print(f'           RMSE: {rmse} | MSE: {mse} | Average Error: {average_error} | Max Error: {max_error} | Min Error: {min_error}')
         infofile = open(os.path.join(self.palmsubpaths[palmnumber], 'info.txt'), 'w')
         infofile.writelines([f'RMSE: {rmse}\n', f'MSE: {mse}\n', f'Average Error: {average_error}\n', f'Max Error: {max_error}\n', f'Min Error: {min_error}\n'])
@@ -183,11 +183,11 @@ class SparsePALM():
 
     def evalute_aggregate_test(self, data_out: np.ndarray, ground_truth: np.ndarray) -> None:
         errors = ground_truth - data_out
-        max_error = np.nanmax(errors)
-        min_error = np.nanmin(errors)
-        average_error = round(np.nanmean(errors), 4)
-        mse = round((1 / len(ground_truth)) * np.nansum(errors ** 2), 4)
-        rmse = round(np.sqrt(mse), 4)
+        max_error = np.round(np.nanmax(errors), 2)
+        min_error = np.round(np.nanmin(errors), 2)
+        average_error = round(np.nanmean(errors), 2)
+        mse = round((1 / len(ground_truth)) * np.nansum(errors ** 2), 2)
+        rmse = round(np.sqrt(mse), 2)
         print(f'           RMSE: {rmse} | MSE: {mse} | Average Error: {average_error} | Max Error: {max_error} | Min Error: {min_error}')
         infofile = open(os.path.join(self.modelpath, f'info_SR{self.SF}.txt'), 'w')
         infofile.writelines([f'RMSE: {rmse}\n', f'MSE: {mse}\n', f'Average Error: {average_error}\n', f'Max Error: {max_error}\n', f'Min Error: {min_error}\n'])
