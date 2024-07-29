@@ -214,10 +214,23 @@ class SRGAN(PhIREGANs.PhIREGANs):
                                                  batch_size=self.test_batchsize)
         self.times['testtime'] = gan_utils.end_timer()
 
-        mse = round((1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2), 4)
-        self.train_mse = mse
+        rmse = round(np.sqrt((1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2)), 4)
+        self.train_rmse = rmse
+        self.write_training_info(data_out_path)
         return data_out_path
+    
 
+    def write_training_info(self, data_out_path):
+        infofile = open(os.path.join(os.path.dirname(data_out_path), f'training_information.txt'), 'w')
+        infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
+                             f'Scaling factor: {self.scaling_factor}\n',
+                             f'Training data: {self.train_tfrecord}\n',
+                             f'Batch size: {self.train_batchsize}\n',
+                             f'Epochs: {self.train_epochs} training',
+                             f'Times: {self.times["traintime"]} training, '
+                             f'{self.times["testtime"]} testing'],
+                             f'Mean squared error: {self.train_rmse}')
+        infofile.close()
         
 
     # INFERENCE --------------------------------------------------------------------------------------------------------
@@ -261,20 +274,19 @@ class SRGAN(PhIREGANs.PhIREGANs):
                                                  model_path=self.trained_model_dir,
                                                  batch_size=self.inference_batchsize)
         self.times['inferencetime'] = gan_utils.end_timer()
-        mse = round((1 / len(self.inference_hr)) * np.sum((self.inference_hr - data_out) ** 2), 4)
-        self.inference_mse = mse
+        rmse = round(np.sqrt((1 / len(self.inference_hr)) * np.sum((self.inference_hr - data_out) ** 2)), 4)
+        self.inference_rmse = rmse
         return data_out_path
+    
 
-
-    # GENERAL FUNCTIONS ------------------------------------------------------------------------------------------------
-    def write_run_info(self, modes, path, batchsize, epochs, mse):
-        infofile = open(os.path.join(os.path.dirname(path), f'model_information.txt'), 'w')
+    def write_inference_info(self, data_out_path):
+        infofile = open(os.path.join(os.path.dirname(data_out_path), f'inference_information.txt'), 'w')
         infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
+                             f'Trained model path: {self.trained_model_dir}\n',
                              f'Scaling factor: {self.scaling_factor}\n',
-                             f'Training data: {self.train_tfrecord}\n',
-                             f'Batch size: {batchsize}\n',
-                             f'Epochs: {epochs} training',
-                             f'Times: {self.times["pretraintime"]} pretraining, {self.times["traintime"]} training, '
-                             f'{self.times["testtime"]} testing'],
-                             f'Mean squared error: {np.round(mse, 2)}')
+                             f'Inference data: {self.inference_tfrecord}\n',
+                             f'Batch size: {self.inference_batchsize}\n',
+                             f'Times: {self.times["inferencetime"]} inference'],
+                             f'Mean squared error: {self.inference_mse}')
         infofile.close()
+        
