@@ -282,12 +282,12 @@ class SRGAN(PhIREGANs.PhIREGANs):
     
 
     def write_inference_info(self, data_out_path, run_id):
-        infofile = open(os.path.join(os.path.dirname(data_out_path), f'inference_information.txt'), 'w')
+        infofile = open(os.path.join(data_out_path, f'inference_information.txt'), 'w')
         infofile.writelines([f'{run_id} MODEL INFORMATION\n',
                              f'Trained model path: {self.trained_model_dir}\n',
                              f'Scaling factor: {self.scaling_factor}\n',
                              f'Inference data: {self.inference_tfrecord}\n',
                              f'Batch size: {self.inference_batchsize}\n',
-                             f'Times: {self.times["inferencetime"]} inference',
+                             f'Times: {self.times["inferencetime"]} inference\n',
                              f'Residual Mean Squared Error: {self.inference_rmse}'])
         infofile.close()
