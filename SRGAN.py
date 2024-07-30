@@ -216,13 +216,13 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
         rmse = round(np.sqrt((1 / len(self.hr_test)) * np.sum((self.hr_test - data_out) ** 2)), 4)
         self.train_rmse = rmse
-        self.write_training_info(data_out_path)
+        self.write_training_info(data_out_path, phiregans.run_id)
         return data_out_path
     
 
-    def write_training_info(self, data_out_path):
+    def write_training_info(self, data_out_path, run_id):
         infofile = open(os.path.join(os.path.dirname(data_out_path), f'training_information.txt'), 'w')
-        infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
+        infofile.writelines([f'{run_id} MODEL INFORMATION\n',
                              f'Scaling factor: {self.scaling_factor}\n',
                              f'Training data: {self.train_tfrecord}\n',
                              f'Batch size: {self.train_batchsize}\n',
@@ -258,7 +258,7 @@ class SRGAN(PhIREGANs.PhIREGANs):
 
     def generate_inference_dataset(self, inference_path, filename):
         hr, lr = gan_utils.generate_LRHR(inference_path, self.scaling_factor)
-        utils.generate_TFRecords(self.inference_tfrecord, data_LR=lr, mode='inference')
+        utils.generate_TFRecords(self.inference_tfrecord, data_LR=lr, mode='test')
         np.save(os.path.join(os.path.dirname(inference_path), f'{filename}_inference_HR.npy'), hr)
         return hr
 
@@ -267,6 +267,7 @@ class SRGAN(PhIREGANs.PhIREGANs):
         assert self.trained_model_dir, 'A trained model must be given'
         phiregans = PhIREGANs.PhIREGANs(data_type=self.datatype)
         #! removed mu_sig calculation
+        phiregans.mu_sig = utils.calculate_mu_sig(self.inference_hr)
         # phiregans.set_mu_sig(self.inference_tfrecord, 100)
         gan_utils.start_timer()
         data_out, data_out_path = phiregans.test(r=[self.scaling_factor],
@@ -276,17 +277,17 @@ class SRGAN(PhIREGANs.PhIREGANs):
         self.times['inferencetime'] = gan_utils.end_timer()
         rmse = round(np.sqrt((1 / len(self.inference_hr)) * np.sum((self.inference_hr - data_out) ** 2)), 4)
         self.inference_rmse = rmse
+        self.write_inference_info(data_out_path, phiregans.run_id)
         return data_out_path
     
 
-    def write_inference_info(self, data_out_path):
+    def write_inference_info(self, data_out_path, run_id):
         infofile = open(os.path.join(os.path.dirname(data_out_path), f'inference_information.txt'), 'w')
-        infofile.writelines([f'{self.model_name} MODEL INFORMATION\n',
+        infofile.writelines([f'{run_id} MODEL INFORMATION\n',
                              f'Trained model path: {self.trained_model_dir}\n',
                              f'Scaling factor: {self.scaling_factor}\n',
                              f'Inference data: {self.inference_tfrecord}\n',
                              f'Batch size: {self.inference_batchsize}\n',
-                             f'Times: {self.times["inferencetime"]} inference'],
-                             f'Mean squared error: {self.inference_mse}')
+                             f'Times: {self.times["inferencetime"]} inference',
+                             f'Residual Mean Squared Error: {self.inference_rmse}'])
         infofile.close()
-        
