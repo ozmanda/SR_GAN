@@ -24,6 +24,7 @@ def empty_array(palmdim):
     Generates an empty array of the same dimensions as the PALM file.
     """
     empty_array = np.empty((palmdim[0], palmdim[1], palmdim[2]), dtype=np.float32)
+    #! NaN is used as a placeholder for missing data - alternative is 0 or -9999
     empty_array[:] = np.nan
     return empty_array
 
@@ -64,6 +65,7 @@ def extract_measurements(measurementpath, stationid, times):
     try:
         measurementfile= pd.read_csv(f'{measurementpath}/temp_{stationid}.csv', delimiter=';')
     except FileNotFoundError:
+        print(f'File not found: {measurementpath}/temp_{stationid}.csv')
         return [np.nan] * len(times)
     
     true_temps = []
@@ -87,9 +89,15 @@ def fill_maps(mapshape, stationsloc, measurementpath, times):
     for station in stationsloc.keys():
         temps = extract_measurements(measurementpath, station, times)
         if not np.isnan(temps).all():
-            lat_idx = stationsloc[station]['lat_idx']
-            lon_idx = stationsloc[station]['lon_idx']
-            temparray[:, lat_idx, lon_idx] = temps
+            try:
+                lat_idx = stationsloc[station]['lat_idx']
+                lon_idx = stationsloc[station]['lon_idx']
+                temparray[:, lat_idx, lon_idx] = temps
+            except IndexError as e:
+                print(f'Station {station} is outside of the reduced boundary ({lat_idx},{lon_idx}) vs. {mapshape})')
+        else:
+            print(f'Station {station} has no measurements')
+    temparray = np.flip(temparray, axis=1)
     return temparray
 
 
@@ -97,11 +105,9 @@ def highres_maps(palmpath, measurementpath, stationinfo, times, shape) -> np.nda
     """
     Generates a high resolution map of the PALM file, using only measurements from the stations within the boundary.
     """
-    print(f'Times: {len(times)}, hr shape: {shape}')
     palmfile = nc.Dataset(palmpath)
     boundary = palm_info(palmfile)
     datetimes = palm_times(palmfile)
     stationsloc = stations_loc(boundary, stationinfo)
     hr_filled_map = fill_maps(shape[:-1], stationsloc, measurementpath, times)
-    print(f'HR shape: {hr_filled_map.shape}')
     return hr_filled_map
