@@ -347,8 +347,7 @@ class PhIREGANs:
 
         tf.compat.v1.reset_default_graph()
 
-        #! Allowing this to be None has an impact on the _parse_test function
-        # assert self.mu_sig is not None, 'Value for mu_sig must be set first.'
+        assert self.mu_sig is not None, 'Value for mu_sig must be set first.'
 
         self.set_LR_data_shape(data_path)
         h, w, C = self.LR_data_shape
