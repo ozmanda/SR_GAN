@@ -63,7 +63,7 @@ class SparsePALM():
                 os.makedirs(self.palmsubpaths[palmnumber])
 
 
-    # -- PALM ESTIMATION RUNS ------------------------------------------------
+    # PALM ESTIMATION RUNS -----------------------------------------------------
     def run_estimation(self, baseline=True, sparse=True, insitu=True) -> None:
         if baseline:
             self.baseline_run()
@@ -316,7 +316,7 @@ class SparsePALM():
                 hr_array = np.load(os.path.join(palmsubpath, 'HR.npy'))
                 lr_array = np.load(os.path.join(palmsubpath, 'LR.npy'))
             gan_utils.generate_TFRecords(tfrecordpath, data_HR=hr_array, data_LR=lr_array, mode=mode)
-            hr_array = np.load(os.path.join(palmsubpath, 'HR.npy'))
+        hr_array = np.load(os.path.join(palmsubpath, 'HR.npy'))
         print('  done.')
         return hr_array
 
