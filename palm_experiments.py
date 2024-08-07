@@ -7,6 +7,7 @@ import gan_utils
 import insitu_maps
 import SRGAN
 from PhIREGANs import PhIREGANs
+import tensorflow as tf
 
 TRAININGFILES = ['mb4', 'mb5', 'mb6', 'mb7']
 TESTFILES = ['mb8']
@@ -386,11 +387,18 @@ if __name__ == '__main__':
             TRAINING_HYPERPARAMETERS['epochs_pretrain'] = args.epochs[0]
             TRAINING_HYPERPARAMETERS['epochs_train'] = args.epochs[1]
 
-    sparse_estimator = SparsePALM(scalingfactor=args.scalingfactor, palmpath=args.palmfolder, 
-                                  measurementpath=args.measurementpath, modelpath=args.modelpath)
-    if args.generate_dataset:
-        sparse_estimator.dataset_generation(stationinfo=args.stationinfo)
-    if args.aggregate_dataset:
-        sparse_estimator.aggregate_run(runname=args.runname)
-    else:
-        sparse_estimator.run_estimation(baseline=args.baseline, sparse=args.sparse, insitu=args.insitu)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try: 
+            with tf.device('GPU:0'):
+                sparse_estimator = SparsePALM(scalingfactor=args.scalingfactor, palmpath=args.palmfolder, 
+                                            measurementpath=args.measurementpath, modelpath=args.modelpath)
+                if args.generate_dataset:
+                    sparse_estimator.dataset_generation(stationinfo=args.stationinfo)
+                if args.aggregate_dataset:
+                    sparse_estimator.aggregate_run(runname=args.runname)
+                else:
+                    sparse_estimator.run_estimation(baseline=args.baseline, sparse=args.sparse, insitu=args.insitu)
+
+        except RuntimeError as e:
+            print(e)
