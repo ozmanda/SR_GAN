@@ -3,7 +3,6 @@ import pickle as cPickle
 import numpy as np
 from warnings import warn
 from netCDF4 import Dataset
-import utils
 from utils import downscale_image, generate_TFRecords
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize

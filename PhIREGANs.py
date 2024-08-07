@@ -115,6 +115,7 @@ class PhIREGANs:
         init_iter = iterator.make_initializer(ds)
         print('Done.')
 
+        
         with tf.compat.v1.Session() as sess:
             print('Pretraining network ...')
 

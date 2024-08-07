@@ -375,7 +375,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, help='Number of epochs, two values assumes [pretrain, train], one value assumes [train]', default=None, nargs='*')
     parser.add_argument('--aggregate_dataset', type=bool, help='Aggregate dataset', default=False)
     parser.add_argument('--runname', type=str, help='Name of the run', default=None)
-    parser.add_argument('--mu_sig', nargs=2, type=float, help='Mean and standard deviation of the noise', default=None)
+    # parser.add_argument('--mu_sig', nargs=2, type=float, help='Mean and standard deviation of the noise', default=None)
     args = parser.parse_args()
     if args.palmnumber:
         TRAININGFILES = args.palmnumber
@@ -386,8 +386,8 @@ if __name__ == '__main__':
             TRAINING_HYPERPARAMETERS['epochs_pretrain'] = args.epochs[0]
             TRAINING_HYPERPARAMETERS['epochs_train'] = args.epochs[1]
 
-    sparse_estimator = SparsePALM(scalingfactor=args.scalingfactor, palmpath=args.palmfolder, measurementpath=args.measurementpath, modelpath=args.modelpath,
-                                  mu_sig=args.mu_sig)
+    sparse_estimator = SparsePALM(scalingfactor=args.scalingfactor, palmpath=args.palmfolder, 
+                                  measurementpath=args.measurementpath, modelpath=args.modelpath)
     if args.generate_dataset:
         sparse_estimator.dataset_generation(stationinfo=args.stationinfo)
     if args.aggregate_dataset:
